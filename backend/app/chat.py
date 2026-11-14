@@ -5,10 +5,10 @@ from openai import OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from app import ai
-from app.auth import CurrentUser, Db
-from app.board import BoardData, Card, Column, InvalidBoard, board_id_for, read_board, write_board
+from app.auth import Db
+from app.board import BoardData, BoardId, Card, Column, InvalidBoard, read_board, write_board
 
-router = APIRouter(prefix="/api/chat")
+router = APIRouter(prefix="/api/boards/{board_id}/chat")
 
 SYSTEM_PROMPT = """You are the assistant for a Kanban project management app. You help the user \
 with their board and can create, edit, move and delete cards.
@@ -21,7 +21,7 @@ Reply to the user in plain text, without Markdown.
 
 If the user's request changes the board, set board_update to the complete updated board. Otherwise set \
 board_update to null. When you update the board:
-- Keep every column, with the same id and in the same order. You may change a column title only if asked.
+- Keep every column, with the same id and in the same order. Add, remove, rename or reorder columns only if asked.
 - Keep every card and its id unchanged unless the user asked you to change or delete it.
 - Give each new card a new id that is not already on the board, such as card-ai-1.
 - Every card needs a non-empty title. Use an empty string if a card has no details."""
@@ -93,8 +93,7 @@ def from_ai_board(board: AIBoard) -> BoardData:
 
 
 @router.post("")
-def chat(request: ChatRequest, user: CurrentUser, db: Db) -> ChatResponse:
-    board_id = board_id_for(db, user["id"])
+def chat(request: ChatRequest, board_id: BoardId, db: Db) -> ChatResponse:
     system = SYSTEM_PROMPT.format(board=to_ai_board(read_board(db, board_id)).model_dump_json())
     messages = [
         {"role": "system", "content": system},

@@ -6,10 +6,11 @@ FastAPI app, managed with `uv`, that serves the API and the static frontend expo
 
 - `app/main.py` - app setup, `GET /api/health`, and the static mount at `/`
 - `app/db.py` - schema, seed data and connections, using the built-in `sqlite3` (see `docs/DATABASE.md`)
-- `app/auth.py` - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, and the `CurrentUser` dependency; sessions are stored in the database and identified by an HTTP-only cookie
-- `app/board.py` - `GET` and `PUT /api/board`, whole-board reads, validation and writes
+- `app/passwords.py` - scrypt password hashing
+- `app/auth.py` - `/api/auth/` register, login, logout, me, password (change; signs out other sessions) and `DELETE me` (delete account), plus the `CurrentUser` dependency; sessions are stored in the database and identified by an HTTP-only cookie
+- `app/board.py` - `/api/boards`: list, create, rename, delete (never the last board), and `GET`/`PUT /{id}` for whole-board reads, validation and writes. Columns can be added, removed and reordered. Every `/{id}` route goes through `BoardId`, which returns 404 unless the user owns the board
 - `app/ai.py` - OpenRouter client
-- `app/chat.py` - `POST /api/chat`; sends the board, history and question to the model, and validates and saves any board update
+- `app/chat.py` - `POST /api/boards/{id}/chat`; sends the board, history and question to the model, and validates and saves any board update
 
 ## AI
 

@@ -53,3 +53,38 @@ def test_database_matches_documented_schema(db_path):
         if "primary_key" in spec:
             assert f"PRIMARY KEY ({', '.join(spec['primary_key'])})" in actual[table]
     conn.close()
+
+
+OLD_SCHEMA = """
+CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE);
+CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE);
+CREATE TABLE boards (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE);
+CREATE TABLE board_columns (
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    id TEXT NOT NULL, title TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY (board_id, id));
+CREATE TABLE cards (
+    board_id INTEGER NOT NULL, id TEXT NOT NULL, column_id TEXT NOT NULL, title TEXT NOT NULL,
+    details TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY (board_id, id),
+    FOREIGN KEY (board_id, column_id) REFERENCES board_columns(board_id, id) ON DELETE CASCADE);
+INSERT INTO users VALUES (1, 'user');
+INSERT INTO sessions VALUES ('old-token', 1);
+INSERT INTO boards VALUES (1, 1);
+INSERT INTO board_columns VALUES (1, 'col-a', 'Mine', 0);
+INSERT INTO cards VALUES (1, 'c1', 'col-a', 'Kept', '', 0);
+"""
+
+
+def test_migrates_single_board_database(db_path):
+    db_path.parent.mkdir(parents=True)
+    conn = sqlite3.connect(db_path)
+    conn.executescript(OLD_SCHEMA)
+    conn.close()
+
+    with TestClient(app) as client:
+        client.cookies.set("session", "old-token")
+        assert client.get("/api/boards").json() == [{"id": 1, "name": "My Board"}]
+        assert client.get("/api/boards/1").json()["cards"]["c1"]["title"] == "Kept"
+        assert client.post("/api/boards", json={"name": "Second"}).status_code == 201
+        client.cookies.clear()
+        login = client.post("/api/auth/login", json={"username": "user", "password": "password"})
+        assert login.status_code == 200

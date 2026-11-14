@@ -8,12 +8,12 @@ from app.main import app
 
 
 def test_board_requires_session(anonymous):
-    assert anonymous.get("/api/board").status_code == 401
-    assert anonymous.put("/api/board", json={"columns": [], "cards": {}}).status_code == 401
+    assert anonymous.get("/api/boards/1").status_code == 401
+    assert anonymous.put("/api/boards/1", json={"columns": [], "cards": {}}).status_code == 401
 
 
 def test_reads_seeded_board_in_order(client):
-    board = client.get("/api/board").json()
+    board = client.get("/api/boards/1").json()
     assert [column["title"] for column in board["columns"]] == [
         "Backlog",
         "Discovery",
@@ -26,7 +26,7 @@ def test_reads_seeded_board_in_order(client):
 
 
 def test_write_round_trip(client):
-    board = client.get("/api/board").json()
+    board = client.get("/api/boards/1").json()
     board["columns"][0]["title"] = "Renamed"
     board["columns"][0]["cardIds"] = ["card-2"]
     board["columns"][1]["cardIds"] = ["card-1", "card-3"]
@@ -36,61 +36,53 @@ def test_write_round_trip(client):
     del board["cards"]["card-6"]
     board["columns"][3]["cardIds"] = []
 
-    response = client.put("/api/board", json=board)
+    response = client.put("/api/boards/1", json=board)
     assert response.status_code == 200
     assert response.json() == board
-    assert client.get("/api/board").json() == board
+    assert client.get("/api/boards/1").json() == board
 
 
 def test_changes_survive_restart(client):
-    board = client.get("/api/board").json()
+    board = client.get("/api/boards/1").json()
     board["columns"][0]["title"] = "Persisted"
-    client.put("/api/board", json=board)
+    client.put("/api/boards/1", json=board)
     token = client.cookies["session"]
 
     with TestClient(app) as restarted:
         restarted.cookies.set("session", token)
-        assert restarted.get("/api/board").json() == board
+        assert restarted.get("/api/boards/1").json() == board
 
 
 def test_users_have_separate_boards(client):
-    board = client.get("/api/board").json()
+    board = client.get("/api/boards/1").json()
     board["columns"][0]["title"] = "Only mine"
     del board["cards"]["card-1"]
     board["columns"][0]["cardIds"].remove("card-1")
-    client.put("/api/board", json=board)
+    client.put("/api/boards/1", json=board)
 
     conn = connect()
-    other_id = create_user(conn, "other")
+    other_id = create_user(conn, "other", "password", demo=True)
     with conn:
         conn.execute("INSERT INTO sessions (token, user_id) VALUES ('other-token', ?)", (other_id,))
     conn.close()
 
     with TestClient(app) as other:
         other.cookies.set("session", "other-token")
-        other_board = other.get("/api/board").json()
+        other_board = other.get("/api/boards/2").json()
         assert other_board["columns"][0]["title"] == "Backlog"
         assert "card-1" in other_board["cards"]
         other_board["columns"][1]["title"] = "Theirs"
-        assert other.put("/api/board", json=other_board).status_code == 200
+        assert other.put("/api/boards/2", json=other_board).status_code == 200
+        # Neither user can reach the other board.
+        assert other.get("/api/boards/1").status_code == 404
+        assert other.put("/api/boards/1", json=other_board).status_code == 404
+        assert client.get("/api/boards/2").status_code == 404
 
-    assert client.get("/api/board").json() == board
-
-
-def add_column(board):
-    board["columns"].append({"id": "col-extra", "title": "Extra", "cardIds": []})
-
-
-def remove_column(board):
-    board["columns"].pop()
+    assert client.get("/api/boards/1").json() == board
 
 
-def reorder_columns(board):
-    board["columns"].reverse()
-
-
-def rename_column_id(board):
-    board["columns"][0]["id"] = "col-other"
+def duplicate_column_id(board):
+    board["columns"][1]["id"] = board["columns"][0]["id"]
 
 
 def blank_column_title(board):
@@ -124,10 +116,7 @@ def mismatched_card_key(board):
 @pytest.mark.parametrize(
     "corrupt",
     [
-        add_column,
-        remove_column,
-        reorder_columns,
-        rename_column_id,
+        duplicate_column_id,
         blank_column_title,
         blank_card_title,
         unknown_card_in_column,
@@ -138,8 +127,24 @@ def mismatched_card_key(board):
     ],
 )
 def test_rejects_invalid_board_and_keeps_stored_one(client, corrupt):
-    original = client.get("/api/board").json()
+    original = client.get("/api/boards/1").json()
     board = copy.deepcopy(original)
     corrupt(board)
-    assert client.put("/api/board", json=board).status_code == 422
-    assert client.get("/api/board").json() == original
+    assert client.put("/api/boards/1", json=board).status_code == 422
+    assert client.get("/api/boards/1").json() == original
+
+
+def test_columns_can_be_added_removed_and_reordered(client):
+    board = client.get("/api/boards/1").json()
+    board["columns"].append({"id": "col-extra", "title": "Extra", "cardIds": []})
+    board["columns"].reverse()
+    assert client.put("/api/boards/1", json=board).status_code == 200
+    stored = client.get("/api/boards/1").json()
+    assert [column["id"] for column in stored["columns"]][:2] == ["col-extra", "col-done"]
+    assert stored == board
+
+    # Removing a column removes it for good, once its cards are moved or deleted.
+    board["columns"] = [column for column in board["columns"] if column["id"] != "col-done"]
+    board["cards"] = {k: v for k, v in board["cards"].items() if k not in ("card-7", "card-8")}
+    assert client.put("/api/boards/1", json=board).status_code == 200
+    assert client.get("/api/boards/1").json() == board

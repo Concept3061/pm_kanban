@@ -14,16 +14,16 @@ def all_cards(board):
 
 
 def test_reply_only_question_does_not_change_board(client):
-    before = client.get("/api/board").json()
-    response = client.post("/api/chat", json={"message": "How many columns does my board have?"})
+    before = client.get("/api/boards/1").json()
+    response = client.post("/api/boards/1/chat", json={"message": "How many columns does my board have?"})
     assert response.status_code == 200
     assert response.json()["reply"]
-    assert client.get("/api/board").json() == before
+    assert client.get("/api/boards/1").json() == before
 
 
 def test_creates_card(client):
     response = client.post(
-        "/api/chat",
+        "/api/boards/1/chat",
         json={"message": "Add a card titled 'Write launch plan' to the Review column."},
     )
     assert response.status_code == 200
@@ -40,7 +40,7 @@ def test_moves_and_edits_card_using_history(client):
         {"role": "assistant", "content": "The card 'Prototype analytics view' is about analytics."},
     ]
     response = client.post(
-        "/api/chat",
+        "/api/boards/1/chat",
         json={
             "message": "Move that card to Done and change its details to 'Finished'.",
             "history": history,

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { KanbanBoard } from "@/components/KanbanBoard";
 import { LoginForm } from "@/components/LoginForm";
+import { Workspace } from "@/components/Workspace";
 import { getMe } from "@/lib/api";
 
 export const AuthGate = () => {
@@ -21,5 +21,5 @@ export const AuthGate = () => {
   if (username === null) {
     return <LoginForm onLogin={setUsername} />;
   }
-  return <KanbanBoard username={username} onSignedOut={() => setUsername(null)} />;
+  return <Workspace username={username} onSignedOut={() => setUsername(null)} />;
 };

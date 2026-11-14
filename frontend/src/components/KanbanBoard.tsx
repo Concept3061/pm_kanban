@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +26,8 @@ import {
 import { createId, moveCard, type BoardData } from "@/lib/kanban";
 
 type KanbanBoardProps = {
+  boardId: number;
+  switcher?: ReactNode;
   username: string;
   onSignedOut: () => void;
 };
@@ -33,7 +35,12 @@ type KanbanBoardProps = {
 const isUnauthorized = (error: unknown) =>
   error instanceof ApiError && error.status === 401;
 
-export const KanbanBoard = ({ username, onSignedOut }: KanbanBoardProps) => {
+export const KanbanBoard = ({
+  boardId,
+  switcher,
+  username,
+  onSignedOut,
+}: KanbanBoardProps) => {
   const [board, setBoard] = useState<BoardData | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +55,7 @@ export const KanbanBoard = ({ username, onSignedOut }: KanbanBoardProps) => {
   );
 
   useEffect(() => {
-    getBoard()
+    getBoard(boardId)
       .then(setBoard)
       .catch((err) => {
         if (isUnauthorized(err)) {
@@ -57,13 +64,13 @@ export const KanbanBoard = ({ username, onSignedOut }: KanbanBoardProps) => {
           setError("Could not load your board. Please reload the page.");
         }
       });
-  }, [onSignedOut]);
+  }, [boardId, onSignedOut]);
 
   const updateBoard = (next: BoardData) => {
     setBoard(next);
     pendingSaves.current = pendingSaves.current.then(async () => {
       try {
-        await saveBoard(next);
+        await saveBoard(boardId, next);
         setError(null);
       } catch (err) {
         if (isUnauthorized(err)) {
@@ -85,7 +92,7 @@ export const KanbanBoard = ({ username, onSignedOut }: KanbanBoardProps) => {
     // The AI must see the latest board, including changes still being saved.
     await pendingSaves.current;
     try {
-      const response = await sendChat(message, history);
+      const response = await sendChat(boardId, message, history);
       if (response.board) {
         setBoard(response.board);
       }
@@ -198,7 +205,7 @@ export const KanbanBoard = ({ username, onSignedOut }: KanbanBoardProps) => {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--gray-text)]">
-                Single Board Kanban
+                Project Boards
               </p>
               <h1 className="mt-3 font-display text-4xl font-semibold text-[var(--navy-dark)]">
                 Kanban Studio
@@ -234,11 +241,12 @@ export const KanbanBoard = ({ username, onSignedOut }: KanbanBoardProps) => {
                   Focus
                 </p>
                 <p className="mt-2 text-lg font-semibold text-[var(--primary-blue)]">
-                  One board. Five columns. Zero clutter.
+                  Many boards. Zero clutter.
                 </p>
               </div>
             </div>
           </div>
+          {switcher}
           <div className="flex flex-wrap items-center gap-4">
             {board.columns.map((column) => (
               <div

@@ -5,7 +5,8 @@
       "description": "One row per person who can sign in.",
       "columns": {
         "id": "INTEGER PRIMARY KEY",
-        "username": "TEXT NOT NULL UNIQUE"
+        "username": "TEXT NOT NULL UNIQUE",
+        "password_hash": "TEXT NOT NULL"
       }
     },
     "sessions": {
@@ -16,14 +17,15 @@
       }
     },
     "boards": {
-      "description": "One board per user for the MVP, enforced by UNIQUE on user_id.",
+      "description": "A user can own any number of boards.",
       "columns": {
         "id": "INTEGER PRIMARY KEY",
-        "user_id": "INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE"
+        "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
+        "name": "TEXT NOT NULL"
       }
     },
     "board_columns": {
-      "description": "The fixed columns of a board. Titles can change; the set and order cannot.",
+      "description": "The columns of a board, in order.",
       "columns": {
         "board_id": "INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE",
         "id": "TEXT NOT NULL",

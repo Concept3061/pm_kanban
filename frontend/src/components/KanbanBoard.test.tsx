@@ -15,19 +15,19 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 const onSignedOut = vi.fn();
 
 const renderBoard = async () => {
-  render(<KanbanBoard username="user" onSignedOut={onSignedOut} />);
+  render(<KanbanBoard boardId={1} username="user" onSignedOut={onSignedOut} />);
   await screen.findByRole("heading", { name: "Kanban Studio" });
 };
 
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 
-const lastSaved = () => vi.mocked(saveBoard).mock.lastCall?.[0] as BoardData;
+const lastSaved = () => vi.mocked(saveBoard).mock.lastCall?.[1] as BoardData;
 
 describe("KanbanBoard", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(getBoard).mockResolvedValue(initialData);
-    vi.mocked(saveBoard).mockImplementation(async (board) => board);
+    vi.mocked(saveBoard).mockImplementation(async (_id, board) => board);
     vi.mocked(logout).mockResolvedValue(undefined);
   });
 
@@ -40,14 +40,14 @@ describe("KanbanBoard", () => {
 
   it("shows an error when the board cannot load", async () => {
     vi.mocked(getBoard).mockRejectedValue(new ApiError(500, "failed"));
-    render(<KanbanBoard username="user" onSignedOut={onSignedOut} />);
+    render(<KanbanBoard boardId={1} username="user" onSignedOut={onSignedOut} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
     expect(onSignedOut).not.toHaveBeenCalled();
   });
 
   it("signs out when loading is unauthorized", async () => {
     vi.mocked(getBoard).mockRejectedValue(new ApiError(401, "failed"));
-    render(<KanbanBoard username="user" onSignedOut={onSignedOut} />);
+    render(<KanbanBoard boardId={1} username="user" onSignedOut={onSignedOut} />);
     await waitFor(() => expect(onSignedOut).toHaveBeenCalled());
   });
 
@@ -159,7 +159,7 @@ describe("KanbanBoard", () => {
   it("saves changes one at a time, in order", async () => {
     const resolvers: (() => void)[] = [];
     vi.mocked(saveBoard).mockImplementation(
-      (board) =>
+      (_id, board) =>
         new Promise((resolve) => {
           resolvers.push(() => resolve(board));
         })
@@ -249,7 +249,7 @@ describe("KanbanBoard", () => {
   it("waits for pending saves before calling the AI", async () => {
     let finishSave = () => {};
     vi.mocked(saveBoard).mockImplementation(
-      (board) =>
+      (_id, board) =>
         new Promise((resolve) => {
           finishSave = () => resolve(board);
         })

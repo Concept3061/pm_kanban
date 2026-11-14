@@ -6,13 +6,15 @@ The full schema is in [schema.json](schema.json), and a backend test checks that
 
 ## Tables
 
-- `users` - people who can sign in. The MVP has one seeded user, `user`. The password is hardcoded in the backend, not stored.
+- `users` - people who can sign in, with a scrypt `password_hash`. Usernames are unique, compared case-insensitively on registration. The seeded demo user is `user` / `password`.
 - `sessions` - maps a session cookie token to a user. Sessions do not expire; logging out deletes the row.
-- `boards` - one per user, enforced by a unique constraint. Removing that constraint would allow several boards per user.
-- `board_columns` - the fixed columns of a board, with renameable titles.
+- `boards` - any number per user, each with a name.
+- `board_columns` - the columns of a board, in order. They can be added, removed, renamed and reordered.
 - `cards` - cards with their column and their position within it.
 
-Column and card ids are only unique within a board, so each user's seeded board can use the same ids.
+Column and card ids are only unique within a board.
+
+Databases from the single-board MVP (`PRAGMA user_version` 0) are migrated at startup: passwords are added and the one-board-per-user limit is dropped.
 
 ## Reads and writes
 
@@ -20,7 +22,7 @@ The API exchanges the whole board as one JSON document, in the frontend's `Board
 
 A board is rejected unless:
 
-- its columns have the same ids, in the same order, as the stored board
+- its column ids are unique
 - every card is in exactly one column, and every card id in a column exists
 - each card's `id` matches its key in `cards`
 - column and card titles are not empty

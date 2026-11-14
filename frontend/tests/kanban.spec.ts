@@ -93,7 +93,7 @@ test("moves a card between columns and keeps it after reload", async ({ page }) 
 });
 
 test("shows an error when a save fails", async ({ page }) => {
-  await page.route("**/api/board", (route) =>
+  await page.route("**/api/boards/1", (route) =>
     route.request().method() === "PUT"
       ? route.fulfill({ status: 500, json: { detail: "failed" } })
       : route.continue()

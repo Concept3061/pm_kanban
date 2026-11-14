@@ -6,7 +6,7 @@ export const startSignedIn = async (page: Page) => {
   await page.request.post("/api/auth/login", {
     data: { username: "user", password: "password" },
   });
-  await page.request.put("/api/board", { data: initialData });
+  await page.request.put("/api/boards/1", { data: initialData });
   await page.goto("/");
 };
 
@@ -35,7 +35,7 @@ export const dragCardToColumn = async (
 export const nextSave = (page: Page) =>
   page.waitForResponse(
     (response) =>
-      response.url().endsWith("/api/board") &&
+      response.url().endsWith("/api/boards/1") &&
       response.request().method() === "PUT" &&
       response.ok()
   );

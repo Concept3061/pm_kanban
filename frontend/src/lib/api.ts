@@ -45,10 +45,43 @@ export const login = (username: string, password: string) =>
 
 export const logout = () => request<void>("/api/auth/logout", "POST");
 
-export const getBoard = () => request<BoardData>("/api/board");
+export const register = (username: string, password: string) =>
+  request<{ username: string }>("/api/auth/register", "POST", {
+    username,
+    password,
+  });
 
-export const saveBoard = (board: BoardData) =>
-  request<BoardData>("/api/board", "PUT", board);
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  request<void>("/api/auth/password", "POST", {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
 
-export const sendChat = (message: string, history: ChatMessage[]) =>
-  request<ChatResponse>("/api/chat", "POST", { message, history });
+export const deleteAccount = (password: string) =>
+  request<void>("/api/auth/me", "DELETE", { password });
+
+export type BoardSummary = { id: number; name: string };
+
+export const listBoards = () => request<BoardSummary[]>("/api/boards");
+
+export const createBoard = (name: string) =>
+  request<BoardSummary>("/api/boards", "POST", { name });
+
+export const renameBoard = (id: number, name: string) =>
+  request<BoardSummary>(`/api/boards/${id}`, "PATCH", { name });
+
+export const deleteBoard = (id: number) =>
+  request<void>(`/api/boards/${id}`, "DELETE");
+
+export const getBoard = (id: number) =>
+  request<BoardData>(`/api/boards/${id}`);
+
+export const saveBoard = (id: number, board: BoardData) =>
+  request<BoardData>(`/api/boards/${id}`, "PUT", board);
+
+export const sendChat = (
+  id: number,
+  message: string,
+  history: ChatMessage[]
+) =>
+  request<ChatResponse>(`/api/boards/${id}/chat`, "POST", { message, history });

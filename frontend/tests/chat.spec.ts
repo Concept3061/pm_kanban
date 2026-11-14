@@ -29,7 +29,7 @@ test("opens and closes the sidebar", async ({ page }) => {
 });
 
 test("refreshes the board when the AI updates it", async ({ page }) => {
-  await page.route("**/api/chat", (route) =>
+  await page.route("**/api/boards/1/chat", (route) =>
     route.fulfill({ json: { reply: "Added it.", board: boardWithNewCard } })
   );
   await page.getByLabel("Message the assistant").fill("Add a card");
@@ -43,7 +43,7 @@ test("refreshes the board when the AI updates it", async ({ page }) => {
 
 test("sends history and leaves the board alone for a plain reply", async ({ page }) => {
   const bodies: unknown[] = [];
-  await page.route("**/api/chat", (route) => {
+  await page.route("**/api/boards/1/chat", (route) => {
     bodies.push(route.request().postDataJSON());
     route.fulfill({ json: { reply: `Reply ${bodies.length}`, board: null } });
   });
@@ -66,7 +66,7 @@ test("sends history and leaves the board alone for a plain reply", async ({ page
 });
 
 test("shows an error and restores the message when the AI fails", async ({ page }) => {
-  await page.route("**/api/chat", (route) =>
+  await page.route("**/api/boards/1/chat", (route) =>
     route.fulfill({ status: 502, json: { detail: "The AI request failed" } })
   );
   const input = page.getByLabel("Message the assistant");
@@ -78,7 +78,7 @@ test("shows an error and restores the message when the AI fails", async ({ page 
 });
 
 test("keeps the conversation when closed and clears it on reload", async ({ page }) => {
-  await page.route("**/api/chat", (route) =>
+  await page.route("**/api/boards/1/chat", (route) =>
     route.fulfill({ json: { reply: "Remembered", board: null } })
   );
   const sidebar = page.getByRole("complementary", { name: "AI assistant" });
