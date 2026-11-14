@@ -8,6 +8,8 @@ import {
   getBoard,
   getOverview,
   listBoards,
+  listMembers,
+  getCommentCounts,
   renameBoard,
   unshareBoard,
 } from "@/lib/api";
@@ -21,6 +23,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   deleteBoard: vi.fn(),
   unshareBoard: vi.fn(),
   listMembers: vi.fn(),
+  getCommentCounts: vi.fn(),
   getBoard: vi.fn(),
   getOverview: vi.fn(),
   saveBoard: vi.fn(),
@@ -44,6 +47,8 @@ describe("Workspace", () => {
       { id: 2, name: "Beta", owner: "user", role: "owner" },
     ]);
     vi.mocked(getBoard).mockResolvedValue(initialData);
+    vi.mocked(getCommentCounts).mockResolvedValue({});
+    vi.mocked(listMembers).mockResolvedValue([]);
   });
 
   it("opens the first board and marks it active", async () => {

@@ -8,9 +8,10 @@ FastAPI app, managed with `uv`, that serves the API and the static frontend expo
 - `app/db.py` - schema, seed data and connections, using the built-in `sqlite3` (see `docs/DATABASE.md`)
 - `app/passwords.py` - scrypt password hashing
 - `app/auth.py` - `/api/auth/` register, login, logout, me, password (change; signs out other sessions) and `DELETE me` (delete account), plus the `CurrentUser` dependency; sessions are stored in the database and identified by an HTTP-only cookie
-- `app/board.py` - `/api/boards`: list, create, rename, delete (never the last board), and `GET`/`PUT /{id}` for whole-board reads, validation and writes. Columns can be added, removed and reordered. Every `/{id}` route goes through `BoardId` (any role), `EditableBoardId` (owner or editor) or `OwnedBoardId` (owner); they return 404 when the user has no access and 403 when the role is too low
+- `app/board.py` - `/api/boards`: list, create, rename, delete (never the last board), and `GET`/`PUT /{id}` for whole-board reads, validation and writes. Columns can be added, removed and reordered. A card's `assignee` must be the owner or a member (`board_usernames`); the AI is given that list. Every `/{id}` route goes through `BoardId` (any role), `EditableBoardId` (owner or editor) or `OwnedBoardId` (owner); they return 404 when the user has no access and 403 when the role is too low
 - `app/activity.py` - `GET /api/boards/{id}/activity`, the latest 50 changes. `write_board` in `board.py` records them by diffing the old and new board; the AI chat marks its changes `viaAi`
 - `app/overview.py` - `GET /api/overview`: for each board the user can open, card, overdue (due before the server's today) and high-priority counts and cards per column, plus totals
+- `app/comments.py` - card comments and per-card counts. Separate from the whole-board write; `write_board` deletes comments of cards that are gone. Adding a comment is recorded in the activity log
 - `app/members.py` - `/api/boards/{id}/members`: list, share (`PUT /{username}` with an editor or viewer role) and remove; members can remove themselves
 - `app/ai.py` - OpenRouter client
 - `app/chat.py` - `POST /api/boards/{id}/chat`; sends the board, history and question to the model, and validates and saves any board update

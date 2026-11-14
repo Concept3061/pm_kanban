@@ -18,15 +18,16 @@ All 10 parts in `docs/PLAN.md` are implemented. The schema is in `docs/schema.js
 
 ## Frontend (`frontend/`)
 
-Next.js 16 / React 19, Tailwind v4, `@dnd-kit` for drag and drop (pointer and keyboard: focus a card, Space to pick up, arrows to move, Space to drop). Client-rendered; `@/` aliases `src/`.
+Next.js 16 / React 19, Tailwind v4, `@dnd-kit` for drag and drop (pointer and keyboard: focus a card, Space to pick up, arrows to move, Space to drop). Pointer drops are decided by the pointer position (`src/lib/dragCollision.ts`), not the dragged card's rectangle, which depends on where it was grabbed; keep `tests/drag.spec.ts` passing when changing this. Client-rendered; `@/` aliases `src/`.
 
-- `src/lib/kanban.ts` - board data model (`BoardData` = ordered `columns` each holding `cardIds`, plus a `cards` record keyed by id; a card has `title`, `details`, `priority` and `dueDate`), `initialData` seed board (5 columns) used by tests, the pure `moveCard` reorder logic, and `createId`
+- `src/lib/kanban.ts` - board data model (`BoardData` = ordered `columns` each holding `cardIds`, plus a `cards` record keyed by id; a card has `title`, `details`, `priority`, `dueDate` and `assignee`), `initialData` seed board (5 columns) used by tests, the pure `moveCard` reorder logic, and `createId`
 - `src/lib/api.ts` - typed client for the backend API
 - `src/components/AuthGate.tsx` - shows `LoginForm` (sign in or register) or `Workspace` based on the session
 - `src/components/Workspace.tsx` - loads the board list, renders `BoardSwitcher` (select/create/rename/delete boards) and the active `KanbanBoard`
 - `src/components/AccountSettings.tsx` - change password and delete account panel, rendered by `Workspace`
 - `src/components/CardFieldInputs.tsx` - priority select and due date input shared by the new-card and edit-card forms
 - `src/components/Overview.tsx` - summary of every accessible board, opened from `Workspace` instead of a board
+- `src/components/CardComments.tsx` and `CommentsContext.tsx` - per-card comments, loaded when a card's comments are opened; the context carries the board id, user, permissions and per-card counts from `KanbanBoard`
 - `src/components/ActivityLog.tsx` - recent changes to the board, fetched when opened
 - `src/components/ShareBoard.tsx` - owners manage members; other members get a Leave button. Viewers get a read-only `KanbanBoard` (`readOnly` prop)
 - `src/components/KanbanBoard.tsx` - owns the state of one board, including its search/priority/overdue filter, which is a view only and never saved (`boardId` prop; cards and columns can be added, edited, moved and deleted) and the `DndContext`, loads from the API and saves each change in order; column/card components are presentational apart from local form state
@@ -51,7 +52,7 @@ npm run test:all
 
 FastAPI + built-in `sqlite3`. Requires `DATABASE_PATH`; AI routes also need `OPENROUTER_API_KEY`. Sessions live in the database and are tracked by an HTTP-only cookie.
 
-- `app/main.py` (setup, `/api/health`, static mount), `db.py` (schema, seed, connections), `passwords.py` (scrypt), `auth.py` (register/login/logout/me/password/delete account, `CurrentUser`), `board.py` (`/api/boards` list/create/rename/delete and `GET`/`PUT /api/boards/{id}`, whole-board writes; the `BoardId`, `EditableBoardId` and `OwnedBoardId` dependencies enforce access: 404 with none, 403 with too little), `activity.py` (`GET /api/boards/{id}/activity`; changes are recorded by `write_board` in `board.py`), `overview.py` (`GET /api/overview`: per-board and total card, overdue and high-priority counts, with cards per column), `members.py` (`/api/boards/{id}/members`: list, share by username with an editor or viewer role, remove or leave), `ai.py` (OpenRouter client), `chat.py` (`POST /api/boards/{id}/chat`)
+- `app/main.py` (setup, `/api/health`, static mount), `db.py` (schema, seed, connections), `passwords.py` (scrypt), `auth.py` (register/login/logout/me/password/delete account, `CurrentUser`), `board.py` (`/api/boards` list/create/rename/delete and `GET`/`PUT /api/boards/{id}`, whole-board writes; the `BoardId`, `EditableBoardId` and `OwnedBoardId` dependencies enforce access: 404 with none, 403 with too little), `activity.py` (`GET /api/boards/{id}/activity`; changes are recorded by `write_board` in `board.py`), `overview.py` (`GET /api/overview`: per-board and total card, overdue and high-priority counts, with cards per column), `comments.py` (card comments: `/api/boards/{id}/cards/{card}/comments`, `/comments/{id}`, `/comment-counts`; owners and editors write, anyone with access reads, authors and the owner delete), `members.py` (`/api/boards/{id}/members`: list, share by username with an editor or viewer role, remove or leave), `ai.py` (OpenRouter client), `chat.py` (`POST /api/boards/{id}/chat`)
 - The board is always read and written as a whole. The model returns a reply plus either the full updated board or null; an invalid response returns 502 and never changes the board
 - `ai.py` deliberately excludes the OpenRouter providers CoreWeave (truncates boards) and DeepInfra (ignores the schema); do not remove those exclusions without re-measuring
 

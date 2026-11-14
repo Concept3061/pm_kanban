@@ -1,13 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useContext, useState, type FormEvent } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
+import { CardComments } from "@/components/CardComments";
 import { CardFieldInputs } from "@/components/CardFieldInputs";
+import { CommentsContext } from "@/components/CommentsContext";
 import { isOverdue, type Card, type CardInput } from "@/lib/kanban";
 
 type KanbanCardProps = {
   card: Card;
   readOnly: boolean;
+  members: string[];
   onDelete: (cardId: string) => void;
   onEdit: (cardId: string, input: CardInput) => void;
 };
@@ -18,14 +21,18 @@ const actionClass =
 export const KanbanCard = ({
   card,
   readOnly,
+  members,
   onDelete,
   onEdit,
 }: KanbanCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const commentCount = useContext(CommentsContext).counts[card.id] ?? 0;
   const [title, setTitle] = useState(card.title);
   const [details, setDetails] = useState(card.details);
   const [priority, setPriority] = useState(card.priority);
   const [dueDate, setDueDate] = useState(card.dueDate);
+  const [assignee, setAssignee] = useState(card.assignee);
 
   const {
     attributes,
@@ -47,6 +54,7 @@ export const KanbanCard = ({
     setDetails(card.details);
     setPriority(card.priority);
     setDueDate(card.dueDate);
+    setAssignee(card.assignee);
     setIsEditing(true);
   };
 
@@ -60,6 +68,7 @@ export const KanbanCard = ({
       details: details.trim(),
       priority,
       dueDate,
+      assignee,
     });
     setIsEditing(false);
   };
@@ -102,12 +111,17 @@ export const KanbanCard = ({
           <CardFieldInputs
             priority={priority}
             dueDate={dueDate}
+            assignee={assignee}
+            members={members}
             onChange={(changes) => {
               if (changes.priority !== undefined) {
                 setPriority(changes.priority);
               }
               if (changes.dueDate !== undefined) {
                 setDueDate(changes.dueDate);
+              }
+              if (changes.assignee !== undefined) {
+                setAssignee(changes.assignee);
               }
             }}
           />
@@ -135,7 +149,7 @@ export const KanbanCard = ({
           <p className="mt-2 break-words text-sm leading-6 text-[var(--gray-text)]">
             {card.details}
           </p>
-          {(card.priority !== "none" || card.dueDate) && (
+          {(card.priority !== "none" || card.dueDate || card.assignee) && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
               {card.priority !== "none" && (
                 <span
@@ -148,6 +162,14 @@ export const KanbanCard = ({
                   )}
                 >
                   {card.priority}
+                </span>
+              )}
+              {card.assignee && (
+                <span
+                  data-testid={`assignee-${card.id}`}
+                  className="rounded-full border border-[var(--stroke)] px-2 py-1 text-[var(--navy-dark)]"
+                >
+                  @{card.assignee}
                 </span>
               )}
               {card.dueDate && (
@@ -165,8 +187,18 @@ export const KanbanCard = ({
               )}
             </div>
           )}
+          <div className="mt-3 flex items-center justify-between gap-1">
+            <button
+              type="button"
+              onClick={() => setShowComments(!showComments)}
+              aria-expanded={showComments}
+              aria-label={`Comments (${commentCount}) on ${card.title}`}
+              className={actionClass}
+            >
+              Comments ({commentCount})
+            </button>
           {!readOnly && (
-          <div className="mt-3 flex items-center justify-end gap-1">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={startEditing}
@@ -185,6 +217,8 @@ export const KanbanCard = ({
             </button>
           </div>
           )}
+          </div>
+          {showComments && <CardComments cardId={card.id} />}
         </>
       )}
     </article>

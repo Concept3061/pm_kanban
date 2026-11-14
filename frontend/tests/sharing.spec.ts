@@ -115,3 +115,47 @@ test("sharing with an unknown user shows an error, and removing a member revokes
   await owner.close();
   await member.close();
 });
+
+test("cards can be assigned to members, filtered, and are unassigned when the member is removed", async ({ browser }) => {
+  const stamp = Date.now();
+  const owner = await newUser(browser, `own${stamp}`);
+  const member = await newUser(browser, `asg${stamp}`);
+
+  await owner.getByRole("button", { name: "Add a card" }).first().click();
+  await owner.getByPlaceholder("Card title").fill("Assign me");
+  await owner.getByRole("button", { name: "Add card" }).click();
+  await expect(owner.getByText("Assign me")).toBeVisible();
+
+  // Only the owner can be chosen until the board is shared.
+  await owner.getByRole("button", { name: /^Edit Assign me/ }).click();
+  await expect(owner.getByLabel("Assignee").locator("option")).toHaveCount(2);
+  await owner.getByRole("button", { name: "Cancel" }).click();
+
+  await share(owner, `asg${stamp}`, "Editor");
+  await owner.reload();
+  await owner.getByRole("button", { name: /^Edit Assign me/ }).click();
+  await owner.getByLabel("Assignee").selectOption(`asg${stamp}`);
+  const saved = owner.waitForResponse(
+    (response) => response.request().method() === "PUT" && response.ok()
+  );
+  await owner.getByRole("button", { name: "Save" }).click();
+  await saved;
+  await expect(owner.locator('[data-testid^="assignee-"]')).toHaveText(`@asg${stamp}`);
+
+  // The member sees the assignment and can filter to it.
+  await member.reload();
+  await nav(member).getByRole("button", { name: `My Board (own${stamp})` }).click();
+  await expect(member.locator('[data-testid^="assignee-"]')).toHaveText(`@asg${stamp}`);
+  await member.getByLabel("Assigned to me").check();
+  await expect(member.locator('[data-testid^="card-"]')).toHaveCount(1);
+
+  // Removing the member clears the assignment.
+  await owner.getByRole("button", { name: "Share", exact: true }).click();
+  await owner.getByRole("button", { name: `Remove asg${stamp}` }).click();
+  await expect(owner.getByRole("list", { name: "Members" }).getByText(`asg${stamp}`)).toHaveCount(0);
+  await owner.reload();
+  await expect(owner.locator('[data-testid^="assignee-"]')).toHaveCount(0);
+
+  await owner.close();
+  await member.close();
+});

@@ -137,3 +137,29 @@ export type OverviewData = {
 };
 
 export const getOverview = () => request<OverviewData>("/api/overview");
+
+export type Comment = {
+  id: number;
+  // null when the author has since deleted their account.
+  username: string | null;
+  body: string;
+  createdAt: string;
+};
+
+export const getCommentCounts = (boardId: number) =>
+  request<Record<string, number>>(`/api/boards/${boardId}/comment-counts`);
+
+export const listComments = (boardId: number, cardId: string) =>
+  request<Comment[]>(
+    `/api/boards/${boardId}/cards/${encodeURIComponent(cardId)}/comments`
+  );
+
+export const addComment = (boardId: number, cardId: string, body: string) =>
+  request<Comment>(
+    `/api/boards/${boardId}/cards/${encodeURIComponent(cardId)}/comments`,
+    "POST",
+    { body }
+  );
+
+export const deleteComment = (boardId: number, commentId: number) =>
+  request<void>(`/api/boards/${boardId}/comments/${commentId}`, "DELETE");

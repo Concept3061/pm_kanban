@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS activity (
     message TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    card_id TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS board_columns (
     board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
     id TEXT NOT NULL,
@@ -49,6 +57,7 @@ CREATE TABLE IF NOT EXISTS cards (
     details TEXT NOT NULL,
     priority TEXT NOT NULL,
     due_date TEXT NOT NULL,
+    assignee TEXT NOT NULL,
     position INTEGER NOT NULL,
     PRIMARY KEY (board_id, id),
     FOREIGN KEY (board_id, column_id) REFERENCES board_columns(board_id, id) ON DELETE CASCADE
@@ -69,16 +78,16 @@ SEED_COLUMNS = [
     ("col-done", "Done"),
 ]
 
-# (id, column_id, title, details, priority, due_date), in display order within each column.
+# (id, column_id, title, details, priority, due_date, assignee), in display order within each column.
 SEED_CARDS = [
-    ("card-1", "col-backlog", "Align roadmap themes", "Draft quarterly themes with impact statements and metrics.", "high", ""),
-    ("card-2", "col-backlog", "Gather customer signals", "Review support tags, sales notes, and churn feedback.", "medium", ""),
-    ("card-3", "col-discovery", "Prototype analytics view", "Sketch initial dashboard layout and key drill-downs.", "none", ""),
-    ("card-4", "col-progress", "Refine status language", "Standardize column labels and tone across the board.", "low", ""),
-    ("card-5", "col-progress", "Design card layout", "Add hierarchy and spacing for scanning dense lists.", "none", ""),
-    ("card-6", "col-review", "QA micro-interactions", "Verify hover, focus, and loading states.", "none", ""),
-    ("card-7", "col-done", "Ship marketing page", "Final copy approved and asset pack delivered.", "none", ""),
-    ("card-8", "col-done", "Close onboarding sprint", "Document release notes and share internally.", "none", ""),
+    ("card-1", "col-backlog", "Align roadmap themes", "Draft quarterly themes with impact statements and metrics.", "high", "", ""),
+    ("card-2", "col-backlog", "Gather customer signals", "Review support tags, sales notes, and churn feedback.", "medium", "", ""),
+    ("card-3", "col-discovery", "Prototype analytics view", "Sketch initial dashboard layout and key drill-downs.", "none", "", ""),
+    ("card-4", "col-progress", "Refine status language", "Standardize column labels and tone across the board.", "low", "", ""),
+    ("card-5", "col-progress", "Design card layout", "Add hierarchy and spacing for scanning dense lists.", "none", "", ""),
+    ("card-6", "col-review", "QA micro-interactions", "Verify hover, focus, and loading states.", "none", "", ""),
+    ("card-7", "col-done", "Ship marketing page", "Final copy approved and asset pack delivered.", "none", "", ""),
+    ("card-8", "col-done", "Close onboarding sprint", "Document release notes and share internally.", "none", "", ""),
 ]
 
 
@@ -109,8 +118,8 @@ def create_board(conn: sqlite3.Connection, user_id: int, name: str, demo: bool =
         )
         if demo:
             conn.executemany(
-                "INSERT INTO cards (board_id, id, column_id, title, details, priority, due_date, position)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO cards (board_id, id, column_id, title, details, priority, due_date, assignee, position)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(board_id, *card, position) for position, card in enumerate(SEED_CARDS)],
             )
     return board_id
@@ -156,6 +165,12 @@ def migrate_v1(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE cards ADD COLUMN due_date TEXT NOT NULL DEFAULT ''")
 
 
+def migrate_v3(conn: sqlite3.Connection) -> None:
+    """Add card assignees."""
+    with conn:
+        conn.execute("ALTER TABLE cards ADD COLUMN assignee TEXT NOT NULL DEFAULT ''")
+
+
 def init_db() -> None:
     Path(os.environ["DATABASE_PATH"]).parent.mkdir(parents=True, exist_ok=True)
     conn = connect()
@@ -166,8 +181,10 @@ def init_db() -> None:
             migrate_v0(conn)
         if has_users and version < 2:
             migrate_v1(conn)
+        if has_users and version < 5:
+            migrate_v3(conn)
         conn.executescript(SCHEMA)
-        conn.execute("PRAGMA user_version = 4")
+        conn.execute("PRAGMA user_version = 6")
         if not conn.execute("SELECT 1 FROM users WHERE username = ?", (SEED_USERNAME,)).fetchone():
             create_user(conn, SEED_USERNAME, SEED_PASSWORD, demo=True)
     finally:

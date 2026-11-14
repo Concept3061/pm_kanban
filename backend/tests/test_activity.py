@@ -96,7 +96,7 @@ def test_rejected_save_records_nothing(client):
 def test_ai_changes_are_marked(client, model):  # noqa: F811
     update = nested_board(client)
     update["columns"][0]["cards"].append(
-        {"id": "card-ai-1", "title": "From AI", "details": "", "priority": "none", "dueDate": ""}
+        {"id": "card-ai-1", "title": "From AI", "details": "", "priority": "none", "dueDate": "", "assignee": ""}
     )
     model.response = with_update(update)
     client.post("/api/boards/1/chat", json={"message": "Add a card"})

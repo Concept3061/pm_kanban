@@ -11,12 +11,13 @@ The full schema is in [schema.json](schema.json), and a backend test checks that
 - `boards` - any number per user, each with a name.
 - `board_members` - users a board is shared with, besides its owner, with an `editor` or `viewer` role. Rows disappear with the board or the user.
 - `activity` - one row per change to a board (card added, edited, moved or deleted; column added, renamed or deleted), with who made it and whether the AI did. Derived by comparing the stored board with each write; reordering within a column is not recorded. The latest 50 are served.
+- `comments` - comments on cards, with the author (cleared if they delete their account). Comments are not part of the whole-board document: they have their own endpoints, so adding one never races a board save. There is no foreign key to `cards`, because a board save rewrites every card; the save deletes comments of cards that no longer exist.
 - `board_columns` - the columns of a board, in order. They can be added, removed, renamed and reordered.
-- `cards` - cards with their column, position within it, `priority` (none, low, medium, high) and `due_date` (YYYY-MM-DD, or empty).
+- `cards` - cards with their column, position within it, `priority` (none, low, medium, high) `due_date` (YYYY-MM-DD, or empty) and `assignee` (the username of the board owner or a member, or empty). An assignee is cleared when that person leaves, is removed from the board or deletes their account.
 
 Column and card ids are only unique within a board.
 
-Databases from the single-board MVP (`PRAGMA user_version` 0) are migrated at startup: passwords are added and the one-board-per-user limit is dropped. Version 1 databases gain the card priority and due date columns. The current version is 4; the shared-boards and activity tables are created by the schema script, so they need no migration.
+Databases from the single-board MVP (`PRAGMA user_version` 0) are migrated at startup: passwords are added and the one-board-per-user limit is dropped. Version 1 databases gain the card priority and due date columns. The current version is 6; version 4 databases gain the card assignee column; the shared-boards and activity tables are created by the schema script, so they need no migration.
 
 ## Reads and writes
 
@@ -28,6 +29,7 @@ A board is rejected unless:
 - every card is in exactly one column, and every card id in a column exists
 - each card's `id` matches its key in `cards`
 - column and card titles are not empty
+- each card's assignee is empty, the owner or a member of the board
 - each card's priority is one of the four values and its `dueDate` is empty or a real YYYY-MM-DD date
 
 ## Access

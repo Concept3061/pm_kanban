@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthGate } from "@/components/AuthGate";
-import { ApiError, getBoard, getMe, listBoards, login, logout, register } from "@/lib/api";
+import { ApiError, getBoard, getMe, listBoards, listMembers, getCommentCounts, login, logout, register } from "@/lib/api";
 import { initialData } from "@/lib/kanban";
 
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -10,6 +10,8 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   login: vi.fn(),
   logout: vi.fn(),
   getBoard: vi.fn(),
+  listMembers: vi.fn(),
+  getCommentCounts: vi.fn(),
   listBoards: vi.fn(),
   register: vi.fn(),
 }));
@@ -24,6 +26,8 @@ describe("AuthGate", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(getBoard).mockResolvedValue(initialData);
+    vi.mocked(getCommentCounts).mockResolvedValue({});
+    vi.mocked(listMembers).mockResolvedValue([]);
     vi.mocked(listBoards).mockResolvedValue([{ id: 1, name: "My Board", owner: "user", role: "owner" }]);
     vi.mocked(logout).mockResolvedValue(undefined);
   });

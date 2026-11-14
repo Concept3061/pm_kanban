@@ -105,4 +105,4 @@ def test_migrates_cards_to_priority_and_due_date(db_path):
     with TestClient(app) as restarted:
         restarted.cookies.set("session", "old-token")
         assert restarted.get("/api/boards/1").json() == board
-    assert sqlite3.connect(db_path).execute("PRAGMA user_version").fetchone()[0] == 4
+    assert sqlite3.connect(db_path).execute("PRAGMA user_version").fetchone()[0] == 6

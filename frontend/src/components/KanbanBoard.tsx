@@ -8,18 +8,22 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import clsx from "clsx";
 import { ChatSidebar } from "@/components/ChatSidebar";
+import { CommentsContext } from "@/components/CommentsContext";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
+import { pointerCollision } from "@/lib/dragCollision";
 import {
   ApiError,
   getBoard,
+  getCommentCounts,
+  listMembers,
   logout,
   saveBoard,
   sendChat,
@@ -40,6 +44,7 @@ import {
 type KanbanBoardProps = {
   boardId: number;
   readOnly?: boolean;
+  isOwner?: boolean;
   switcher?: ReactNode;
   username: string;
   onSignedOut: () => void;
@@ -51,6 +56,7 @@ const isUnauthorized = (error: unknown) =>
 export const KanbanBoard = ({
   boardId,
   readOnly = false,
+  isOwner = false,
   switcher,
   username,
   onSignedOut,
@@ -60,6 +66,11 @@ export const KanbanBoard = ({
   const [error, setError] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [filter, setFilter] = useState<CardFilter>(noFilter);
+  // Usernames cards can be assigned to; empty until loaded.
+  const [members, setMembers] = useState<string[]>([]);
+  // Latest pointer height while dragging, to tell the top half of a card from the bottom.
+  const pointerY = useRef<number | null>(null);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   // Saves run one at a time so an older board can never overwrite a newer one.
   const pendingSaves = useRef<Promise<void>>(Promise.resolve());
 
@@ -83,6 +94,21 @@ export const KanbanBoard = ({
         }
       });
   }, [boardId, onSignedOut]);
+
+  useEffect(() => {
+    listMembers(boardId)
+      .then((list) => setMembers(list.map((member) => member.username)))
+      .catch(() => setMembers([]));
+  }, [boardId]);
+
+  useEffect(() => {
+    getCommentCounts(boardId)
+      .then(setCommentCounts)
+      .catch(() => setCommentCounts({}));
+  }, [boardId]);
+
+  const handleCommentCount = (cardId: string, count: number) =>
+    setCommentCounts((counts) => ({ ...counts, [cardId]: count }));
 
   const updateBoard = (next: BoardData) => {
     setBoard(next);
@@ -138,6 +164,16 @@ export const KanbanBoard = ({
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
+    pointerY.current =
+      "clientY" in event.activatorEvent
+        ? (event.activatorEvent as PointerEvent).clientY
+        : null;
+  };
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    if ("clientY" in event.activatorEvent) {
+      pointerY.current = (event.activatorEvent as PointerEvent).clientY + event.delta.y;
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -148,9 +184,20 @@ export const KanbanBoard = ({
       return;
     }
 
+    const isOverCard = !board.columns.some((column) => column.id === over.id);
+    const placeAfter =
+      isOverCard &&
+      pointerY.current !== null &&
+      pointerY.current > over.rect.top + over.rect.height / 2;
+
     updateBoard({
       ...board,
-      columns: moveCard(board.columns, active.id as string, over.id as string),
+      columns: moveCard(
+        board.columns,
+        active.id as string,
+        over.id as string,
+        placeAfter
+      ),
     });
   };
 
@@ -244,6 +291,16 @@ export const KanbanBoard = ({
   const activeCard = activeCardId ? board.cards[activeCardId] : null;
 
   return (
+    <CommentsContext.Provider
+      value={{
+        boardId,
+        username,
+        canComment: !readOnly,
+        isOwner,
+        counts: commentCounts,
+        onCountChange: handleCommentCount,
+      }}
+    >
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute left-0 top-0 h-[420px] w-[420px] -translate-x-1/3 -translate-y-1/3 rounded-full bg-[radial-gradient(circle,_rgba(32,157,215,0.25)_0%,_rgba(32,157,215,0.05)_55%,_transparent_70%)]" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-[520px] w-[520px] translate-x-1/4 translate-y-1/4 rounded-full bg-[radial-gradient(circle,_rgba(117,57,145,0.18)_0%,_rgba(117,57,145,0.05)_55%,_transparent_75%)]" />
@@ -358,6 +415,19 @@ export const KanbanBoard = ({
               />
               Overdue only
             </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-[var(--gray-text)]">
+              <input
+                type="checkbox"
+                checked={filter.assignee === username}
+                onChange={(event) =>
+                  setFilter({
+                    ...filter,
+                    assignee: event.target.checked ? username : "",
+                  })
+                }
+              />
+              Assigned to me
+            </label>
             {isFiltering(filter) && (
               <button
                 type="button"
@@ -377,7 +447,8 @@ export const KanbanBoard = ({
 
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={pointerCollision(board.columns.map((column) => column.id))}
+          onDragMove={handleDragMove}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -400,6 +471,7 @@ export const KanbanBoard = ({
                 isFiltering={isFiltering(filter)}
                 canDelete={board.columns.length > 1}
                 readOnly={readOnly}
+                members={members}
                 onRename={handleRenameColumn}
                 onDelete={handleDeleteColumn}
                 onAddCard={handleAddCard}
@@ -435,5 +507,6 @@ export const KanbanBoard = ({
       />
       )}
     </div>
+    </CommentsContext.Provider>
   );
 };

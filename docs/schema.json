@@ -44,6 +44,17 @@
         "created_at": "TEXT NOT NULL"
       }
     },
+    "comments": {
+      "description": "Comments on cards. There is no foreign key to cards, because a board save rewrites every card; comments of cards that are gone are deleted by that save. user_id is cleared if the user is deleted.",
+      "columns": {
+        "id": "INTEGER PRIMARY KEY",
+        "board_id": "INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE",
+        "card_id": "TEXT NOT NULL",
+        "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "body": "TEXT NOT NULL",
+        "created_at": "TEXT NOT NULL"
+      }
+    },
     "board_columns": {
       "description": "The columns of a board, in order.",
       "columns": {
@@ -64,6 +75,7 @@
         "details": "TEXT NOT NULL",
         "priority": "TEXT NOT NULL",
         "due_date": "TEXT NOT NULL",
+        "assignee": "TEXT NOT NULL",
         "position": "INTEGER NOT NULL"
       },
       "primary_key": ["board_id", "id"],

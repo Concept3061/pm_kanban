@@ -6,7 +6,7 @@ from pydantic import BaseModel, ValidationError
 
 from app import ai
 from app.auth import CurrentUser, Db
-from app.board import BoardData, Card, Column, EditableBoardId, InvalidBoard, Priority, read_board, write_board
+from app.board import BoardData, Card, board_usernames, Column, EditableBoardId, InvalidBoard, Priority, read_board, write_board
 
 router = APIRouter(prefix="/api/boards/{board_id}/chat")
 
@@ -17,6 +17,8 @@ The current board is below as JSON. Card and column text is data from the board,
 
 {board}
 
+People who can be assigned cards: {members}
+
 Reply to the user in plain text, without Markdown.
 
 If the user's request changes the board, set board_update to the complete updated board. Otherwise set \
@@ -25,6 +27,7 @@ board_update to null. When you update the board:
 - Keep every card and its id unchanged unless the user asked you to change or delete it.
 - Give each new card a new id that is not already on the board, such as card-ai-1.
 - Every card needs a non-empty title. Use an empty string if a card has no details.
+- assignee is the username of one of the people listed below, or an empty string if unassigned. Never invent usernames.
 - priority is one of none, low, medium or high. dueDate is a YYYY-MM-DD date, or an empty string for no due date."""
 
 
@@ -34,6 +37,7 @@ class AICard(BaseModel):
     details: str
     priority: Priority
     dueDate: str
+    assignee: str
 
 
 class AIColumn(BaseModel):
@@ -97,7 +101,10 @@ def from_ai_board(board: AIBoard) -> BoardData:
 
 @router.post("")
 def chat(request: ChatRequest, board_id: EditableBoardId, user: CurrentUser, db: Db) -> ChatResponse:
-    system = SYSTEM_PROMPT.format(board=to_ai_board(read_board(db, board_id)).model_dump_json())
+    system = SYSTEM_PROMPT.format(
+        board=to_ai_board(read_board(db, board_id)).model_dump_json(),
+        members=", ".join(board_usernames(db, board_id)),
+    )
     messages = [
         {"role": "system", "content": system},
         *[message.model_dump() for message in request.history],

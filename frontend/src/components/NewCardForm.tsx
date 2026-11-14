@@ -7,13 +7,15 @@ const initialFormState: CardInput = {
   details: "",
   priority: "none",
   dueDate: "",
+  assignee: "",
 };
 
 type NewCardFormProps = {
+  members: string[];
   onAdd: (input: CardInput) => void;
 };
 
-export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
+export const NewCardForm = ({ members, onAdd }: NewCardFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [formState, setFormState] = useState(initialFormState);
 
@@ -56,6 +58,8 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
           <CardFieldInputs
             priority={formState.priority}
             dueDate={formState.dueDate}
+            assignee={formState.assignee}
+            members={members}
             onChange={(changes) =>
               setFormState((prev) => ({ ...prev, ...changes }))
             }

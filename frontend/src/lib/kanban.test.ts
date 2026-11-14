@@ -55,6 +55,7 @@ describe("matchesFilter", () => {
     details: "Quarterly numbers",
     priority: "high",
     dueDate: "2030-06-01",
+    assignee: "pat",
   };
 
   it("matches everything with no filter", () => {
@@ -81,12 +82,49 @@ describe("matchesFilter", () => {
   });
 
   it("requires every condition", () => {
-    const filter = { text: "report", priority: "low" as const, overdueOnly: true };
+    const filter = {
+      ...noFilter,
+      text: "report",
+      priority: "low" as const,
+      overdueOnly: true,
+    };
     expect(matchesFilter(card, filter, today)).toBe(false);
     expect(isFiltering(filter)).toBe(true);
   });
 
+  it("filters by assignee", () => {
+    expect(matchesFilter(card, { ...noFilter, assignee: "pat" }, today)).toBe(true);
+    expect(matchesFilter(card, { ...noFilter, assignee: "sam" }, today)).toBe(false);
+    expect(matchesFilter({ ...card, assignee: "" }, { ...noFilter, assignee: "pat" }, today)).toBe(false);
+    expect(isFiltering({ ...noFilter, assignee: "pat" })).toBe(true);
+  });
+
   it("treats blank search text as no filter", () => {
     expect(isFiltering({ ...noFilter, text: "   " })).toBe(false);
+  });
+});
+
+describe("moveCard into another column", () => {
+  const columns: Column[] = [
+    { id: "col-a", title: "A", cardIds: ["card-1"] },
+    { id: "col-b", title: "B", cardIds: ["card-2", "card-3"] },
+  ];
+
+  it("inserts before the card it is dropped on by default", () => {
+    expect(moveCard(columns, "card-1", "card-2")[1].cardIds).toEqual(["card-1", "card-2", "card-3"]);
+  });
+
+  it("inserts after the card when asked to", () => {
+    expect(moveCard(columns, "card-1", "card-2", true)[1].cardIds).toEqual(["card-2", "card-1", "card-3"]);
+    expect(moveCard(columns, "card-1", "card-3", true)[1].cardIds).toEqual(["card-2", "card-3", "card-1"]);
+  });
+
+  it("appends when dropped on the column itself, with or without placeAfter", () => {
+    expect(moveCard(columns, "card-1", "col-b")[1].cardIds).toEqual(["card-2", "card-3", "card-1"]);
+    expect(moveCard(columns, "card-1", "col-b", true)[1].cardIds).toEqual(["card-2", "card-3", "card-1"]);
+  });
+
+  it("ignores placeAfter within a column", () => {
+    expect(moveCard(columns, "card-2", "card-3", true)[1].cardIds).toEqual(["card-3", "card-2"]);
   });
 });

@@ -101,5 +101,6 @@ def delete_account(confirm: Password, response: Response, user: CurrentUser, db:
     if not verify_password(confirm.password, user["password_hash"]):
         raise HTTPException(status_code=403, detail="Password is incorrect")
     with db:
+        db.execute("UPDATE cards SET assignee = '' WHERE assignee = ?", (user["username"],))
         db.execute("DELETE FROM users WHERE id = ?", (user["id"],))
     response.delete_cookie(COOKIE_NAME)

@@ -90,7 +90,7 @@ def test_update_creates_edits_and_moves_cards(client, model):
     moved = update["columns"][0]["cards"].pop(0)
     moved["title"] = "Edited by AI"
     update["columns"][4]["cards"].append(moved)
-    update["columns"][1]["cards"].append({"id": "card-ai-1", "title": "Created", "details": "", "priority": "none", "dueDate": ""})
+    update["columns"][1]["cards"].append({"id": "card-ai-1", "title": "Created", "details": "", "priority": "none", "dueDate": "", "assignee": ""})
     model.response = with_update(update)
 
     response = client.post("/api/boards/1/chat", json={"message": "Change things"})
@@ -179,7 +179,7 @@ def test_ai_can_set_priority_and_due_date(client, model):
     update = nested_board(client)
     update["columns"][0]["cards"][1].update(priority="high", dueDate="2031-01-15")
     update["columns"][0]["cards"].append(
-        {"id": "card-ai-1", "title": "Urgent", "details": "", "priority": "high", "dueDate": "2031-01-02"}
+        {"id": "card-ai-1", "title": "Urgent", "details": "", "priority": "high", "dueDate": "2031-01-02", "assignee": ""}
     )
     model.response = with_update(update)
 

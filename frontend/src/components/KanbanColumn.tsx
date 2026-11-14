@@ -10,6 +10,7 @@ type KanbanColumnProps = {
   cards: Card[];
   canDelete: boolean;
   readOnly: boolean;
+  members: string[];
   isFiltering: boolean;
   onRename: (columnId: string, title: string) => void;
   onDelete: (columnId: string) => void;
@@ -23,6 +24,7 @@ export const KanbanColumn = ({
   cards,
   canDelete,
   readOnly,
+  members,
   isFiltering,
   onRename,
   onDelete,
@@ -92,6 +94,7 @@ export const KanbanColumn = ({
               key={card.id}
               card={card}
               readOnly={readOnly}
+              members={members}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
               onEdit={onEditCard}
             />
@@ -104,7 +107,10 @@ export const KanbanColumn = ({
         )}
       </div>
       {!readOnly && (
-        <NewCardForm onAdd={(input) => onAddCard(column.id, input)} />
+        <NewCardForm
+          members={members}
+          onAdd={(input) => onAddCard(column.id, input)}
+        />
       )}
     </section>
   );

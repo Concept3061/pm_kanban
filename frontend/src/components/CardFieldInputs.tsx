@@ -3,7 +3,12 @@ import { priorities, type CardInput } from "@/lib/kanban";
 type CardFieldInputsProps = {
   priority: CardInput["priority"];
   dueDate: string;
-  onChange: (changes: Partial<Pick<CardInput, "priority" | "dueDate">>) => void;
+  assignee: string;
+  // Usernames the card can be assigned to.
+  members: string[];
+  onChange: (
+    changes: Partial<Pick<CardInput, "priority" | "dueDate" | "assignee">>
+  ) => void;
 };
 
 const fieldClass =
@@ -15,6 +20,8 @@ const labelClass =
 export const CardFieldInputs = ({
   priority,
   dueDate,
+  assignee,
+  members,
   onChange,
 }: CardFieldInputsProps) => (
   <div className="grid grid-cols-2 gap-2">
@@ -42,6 +49,21 @@ export const CardFieldInputs = ({
         onChange={(event) => onChange({ dueDate: event.target.value })}
         className={`${fieldClass} mt-1`}
       />
+    </label>
+    <label className={`${labelClass} col-span-2`}>
+      Assignee
+      <select
+        value={assignee}
+        onChange={(event) => onChange({ assignee: event.target.value })}
+        className={`${fieldClass} mt-1`}
+      >
+        <option value="">Unassigned</option>
+        {members.map((member) => (
+          <option key={member} value={member}>
+            {member}
+          </option>
+        ))}
+      </select>
     </label>
   </div>
 );

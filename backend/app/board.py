@@ -21,6 +21,8 @@ class Card(BaseModel):
     priority: Priority = "none"
     # A YYYY-MM-DD date, or empty for no due date.
     dueDate: str = ""
+    # The username of a member of the board, or empty if unassigned.
+    assignee: str = ""
 
     @field_validator("dueDate")
     @classmethod
@@ -87,7 +89,7 @@ def read_board(db: sqlite3.Connection, board_id: int) -> BoardData:
     }
     cards = {}
     for row in db.execute(
-        "SELECT id, column_id, title, details, priority, due_date FROM cards WHERE board_id = ? ORDER BY position", (board_id,)
+        "SELECT id, column_id, title, details, priority, due_date, assignee FROM cards WHERE board_id = ? ORDER BY position", (board_id,)
     ):
         cards[row["id"]] = Card(
             id=row["id"],
@@ -95,12 +97,24 @@ def read_board(db: sqlite3.Connection, board_id: int) -> BoardData:
             details=row["details"],
             priority=row["priority"],
             dueDate=row["due_date"],
+            assignee=row["assignee"],
         )
         columns[row["column_id"]].cardIds.append(row["id"])
     return BoardData(columns=list(columns.values()), cards=cards)
 
 
-def validate_board(board: BoardData) -> None:
+def board_usernames(db: sqlite3.Connection, board_id: int) -> list[str]:
+    """The owner and everyone the board is shared with: the people cards can be assigned to."""
+    rows = db.execute(
+        "SELECT users.username FROM boards JOIN users ON users.id = boards.user_id WHERE boards.id = ?"
+        " UNION SELECT users.username FROM board_members m JOIN users ON users.id = m.user_id WHERE m.board_id = ?"
+        " ORDER BY 1 COLLATE NOCASE",
+        (board_id, board_id),
+    )
+    return [row["username"] for row in rows]
+
+
+def validate_board(board: BoardData, usernames: list[str]) -> None:
     column_ids = [column.id for column in board.columns]
     if len(column_ids) != len(set(column_ids)):
         raise InvalidBoard("Column ids must be unique")
@@ -111,6 +125,8 @@ def validate_board(board: BoardData) -> None:
         raise InvalidBoard("Every card must be in exactly one column")
     if any(key != card.id for key, card in board.cards.items()):
         raise InvalidBoard("Card keys must match card ids")
+    if any(card.assignee and card.assignee not in usernames for card in board.cards.values()):
+        raise InvalidBoard("Cards can only be assigned to the owner or members of the board")
 
 
 def describe_changes(old: BoardData, new: BoardData) -> list[str]:
@@ -134,6 +150,10 @@ def describe_changes(old: BoardData, new: BoardData) -> list[str]:
             events.append(f'added card "{card.title}" to {new_places[card_id].title}')
             continue
         before = old.cards[card_id]
+        if card.assignee != before.assignee:
+            events.append(
+                f'assigned "{card.title}" to {card.assignee}' if card.assignee else f'unassigned "{card.title}"'
+            )
         if (card.title, card.details, card.priority, card.dueDate) != (
             before.title,
             before.details,
@@ -152,7 +172,7 @@ def describe_changes(old: BoardData, new: BoardData) -> list[str]:
 def write_board(
     db: sqlite3.Connection, board_id: int, board: BoardData, user_id: int, via_ai: bool = False
 ) -> None:
-    validate_board(board)
+    validate_board(board, board_usernames(db, board_id))
     events = describe_changes(read_board(db, board_id), board)
     with db:
         db.executemany(
@@ -166,8 +186,8 @@ def write_board(
             [(board_id, column.id, column.title, position) for position, column in enumerate(board.columns)],
         )
         db.executemany(
-            "INSERT INTO cards (board_id, id, column_id, title, details, priority, due_date, position)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO cards (board_id, id, column_id, title, details, priority, due_date, assignee, position)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     board_id,
@@ -177,11 +197,16 @@ def write_board(
                     board.cards[card_id].details,
                     board.cards[card_id].priority,
                     board.cards[card_id].dueDate,
+                    board.cards[card_id].assignee,
                     position,
                 )
                 for column in board.columns
                 for position, card_id in enumerate(column.cardIds)
             ],
+        )
+        db.execute(
+            "DELETE FROM comments WHERE board_id = ? AND card_id NOT IN (SELECT id FROM cards WHERE board_id = ?)",
+            (board_id, board_id),
         )
 
 

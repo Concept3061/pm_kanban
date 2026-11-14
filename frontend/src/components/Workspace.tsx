@@ -129,6 +129,7 @@ export const Workspace = ({ username, onSignedOut }: WorkspaceProps) => {
         key={activeId}
         boardId={activeId}
         readOnly={role === "viewer"}
+        isOwner={role === "owner"}
         username={username}
         onSignedOut={onSignedOut}
         switcher={

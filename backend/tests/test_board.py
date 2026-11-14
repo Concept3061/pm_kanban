@@ -31,7 +31,7 @@ def test_write_round_trip(client):
     board["columns"][0]["cardIds"] = ["card-2"]
     board["columns"][1]["cardIds"] = ["card-1", "card-3"]
     board["cards"]["card-1"]["details"] = "Edited"
-    board["cards"]["card-new"] = {"id": "card-new", "title": "New", "details": "", "priority": "none", "dueDate": ""}
+    board["cards"]["card-new"] = {"id": "card-new", "title": "New", "details": "", "priority": "none", "dueDate": "", "assignee": ""}
     board["columns"][4]["cardIds"].insert(0, "card-new")
     del board["cards"]["card-6"]
     board["columns"][3]["cardIds"] = []
@@ -159,6 +159,7 @@ def test_card_priority_and_due_date_round_trip(client):
         "details": "Sketch initial dashboard layout and key drill-downs.",
         "priority": "none",
         "dueDate": "",
+        "assignee": "",
     }
     board["cards"]["card-3"]["priority"] = "low"
     board["cards"]["card-3"]["dueDate"] = "2030-02-28"

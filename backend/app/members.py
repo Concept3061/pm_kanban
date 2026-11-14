@@ -55,3 +55,5 @@ def unshare(username: str, board_id: BoardId, user: CurrentUser, db: Db):
         raise HTTPException(status_code=403, detail="You do not have permission to do that")
     with db:
         db.execute("DELETE FROM board_members WHERE board_id = ? AND user_id = ?", (board_id, target["id"]))
+        # They can no longer be assigned cards on this board.
+        db.execute("UPDATE cards SET assignee = '' WHERE board_id = ? AND assignee = ? COLLATE NOCASE", (board_id, username))

@@ -9,6 +9,8 @@ export type Card = {
   priority: Priority;
   // YYYY-MM-DD, or empty for no due date.
   dueDate: string;
+  // The username of a board member, or empty.
+  assignee: string;
 };
 
 export type CardInput = Omit<Card, "id">;
@@ -43,6 +45,7 @@ export const initialData: BoardData = {
       details: "Draft quarterly themes with impact statements and metrics.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-2": {
       id: "card-2",
@@ -50,6 +53,7 @@ export const initialData: BoardData = {
       details: "Review support tags, sales notes, and churn feedback.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-3": {
       id: "card-3",
@@ -57,6 +61,7 @@ export const initialData: BoardData = {
       details: "Sketch initial dashboard layout and key drill-downs.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-4": {
       id: "card-4",
@@ -64,6 +69,7 @@ export const initialData: BoardData = {
       details: "Standardize column labels and tone across the board.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-5": {
       id: "card-5",
@@ -71,6 +77,7 @@ export const initialData: BoardData = {
       details: "Add hierarchy and spacing for scanning dense lists.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-6": {
       id: "card-6",
@@ -78,6 +85,7 @@ export const initialData: BoardData = {
       details: "Verify hover, focus, and loading states.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-7": {
       id: "card-7",
@@ -85,6 +93,7 @@ export const initialData: BoardData = {
       details: "Final copy approved and asset pack delivered.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
     "card-8": {
       id: "card-8",
@@ -92,6 +101,7 @@ export const initialData: BoardData = {
       details: "Document release notes and share internally.",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
   },
 };
@@ -109,7 +119,9 @@ const findColumnId = (columns: Column[], id: string) => {
 export const moveCard = (
   columns: Column[],
   activeId: string,
-  overId: string
+  overId: string,
+  // Dropping on a card in another column: put the card after it instead of before.
+  placeAfter = false
 ): Column[] => {
   const activeColumnId = findColumnId(columns, activeId);
   const overColumnId = findColumnId(columns, overId);
@@ -171,7 +183,10 @@ export const moveCard = (
     nextOverCardIds.push(activeId);
   } else {
     const overIndex = overColumn.cardIds.indexOf(overId);
-    const insertIndex = overIndex === -1 ? nextOverCardIds.length : overIndex;
+    const insertIndex =
+      overIndex === -1
+        ? nextOverCardIds.length
+        : overIndex + (placeAfter ? 1 : 0);
     nextOverCardIds.splice(insertIndex, 0, activeId);
   }
 
@@ -206,12 +221,22 @@ export type CardFilter = {
   text: string;
   priority: Priority | "any";
   overdueOnly: boolean;
+  // Only cards assigned to this username; empty for everyone.
+  assignee: string;
 };
 
-export const noFilter: CardFilter = { text: "", priority: "any", overdueOnly: false };
+export const noFilter: CardFilter = {
+  text: "",
+  priority: "any",
+  overdueOnly: false,
+  assignee: "",
+};
 
 export const isFiltering = (filter: CardFilter) =>
-  filter.text.trim() !== "" || filter.priority !== "any" || filter.overdueOnly;
+  filter.text.trim() !== "" ||
+  filter.priority !== "any" ||
+  filter.overdueOnly ||
+  filter.assignee !== "";
 
 export const matchesFilter = (card: Card, filter: CardFilter, today?: Date) => {
   const text = filter.text.trim().toLowerCase();
@@ -223,6 +248,9 @@ export const matchesFilter = (card: Card, filter: CardFilter, today?: Date) => {
     return false;
   }
   if (filter.priority !== "any" && card.priority !== filter.priority) {
+    return false;
+  }
+  if (filter.assignee && card.assignee !== filter.assignee) {
     return false;
   }
   return !filter.overdueOnly || isOverdue(card.dueDate, today);

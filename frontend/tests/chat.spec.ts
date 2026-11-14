@@ -18,6 +18,7 @@ const boardWithNewCard: BoardData = {
       details: "",
       priority: "none",
       dueDate: "",
+      assignee: "",
     },
   },
 };

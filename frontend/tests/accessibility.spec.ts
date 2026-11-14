@@ -39,6 +39,8 @@ test("the board with its panels and forms open has no violations", async ({ page
   await page.getByRole("button", { name: "Activity", exact: true }).click();
   await page.getByRole("button", { name: "AI Assistant" }).click();
   await page.getByRole("button", { name: "Add a card" }).first().click();
+  await page.getByRole("button", { name: /^Comments \(0\) on Gather customer signals$/ }).click();
+  await expect(page.getByLabel("Add a comment")).toBeVisible();
   await page
     .getByTestId("card-card-1")
     .getByRole("button", { name: "Edit Align roadmap themes" })
