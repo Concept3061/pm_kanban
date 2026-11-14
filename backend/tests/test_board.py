@@ -31,7 +31,7 @@ def test_write_round_trip(client):
     board["columns"][0]["cardIds"] = ["card-2"]
     board["columns"][1]["cardIds"] = ["card-1", "card-3"]
     board["cards"]["card-1"]["details"] = "Edited"
-    board["cards"]["card-new"] = {"id": "card-new", "title": "New", "details": ""}
+    board["cards"]["card-new"] = {"id": "card-new", "title": "New", "details": "", "priority": "none", "dueDate": ""}
     board["columns"][4]["cardIds"].insert(0, "card-new")
     del board["cards"]["card-6"]
     board["columns"][3]["cardIds"] = []
@@ -148,3 +148,46 @@ def test_columns_can_be_added_removed_and_reordered(client):
     board["cards"] = {k: v for k, v in board["cards"].items() if k not in ("card-7", "card-8")}
     assert client.put("/api/boards/1", json=board).status_code == 200
     assert client.get("/api/boards/1").json() == board
+
+
+def test_card_priority_and_due_date_round_trip(client):
+    board = client.get("/api/boards/1").json()
+    assert board["cards"]["card-1"]["priority"] == "high"
+    assert board["cards"]["card-3"] == {
+        "id": "card-3",
+        "title": "Prototype analytics view",
+        "details": "Sketch initial dashboard layout and key drill-downs.",
+        "priority": "none",
+        "dueDate": "",
+    }
+    board["cards"]["card-3"]["priority"] = "low"
+    board["cards"]["card-3"]["dueDate"] = "2030-02-28"
+    assert client.put("/api/boards/1", json=board).status_code == 200
+    assert client.get("/api/boards/1").json() == board
+
+
+def test_card_fields_default_when_omitted(client):
+    board = client.get("/api/boards/1").json()
+    board["cards"]["card-new"] = {"id": "card-new", "title": "Bare", "details": ""}
+    board["columns"][0]["cardIds"].append("card-new")
+    stored = client.put("/api/boards/1", json=board).json()
+    assert stored["cards"]["card-new"]["priority"] == "none"
+    assert stored["cards"]["card-new"]["dueDate"] == ""
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("priority", "urgent"),
+        ("priority", ""),
+        ("dueDate", "tomorrow"),
+        ("dueDate", "2030-02-30"),
+        ("dueDate", "2030-2-3"),
+    ],
+)
+def test_rejects_invalid_card_fields(client, field, value):
+    original = client.get("/api/boards/1").json()
+    board = copy.deepcopy(original)
+    board["cards"]["card-1"][field] = value
+    assert client.put("/api/boards/1", json=board).status_code == 422
+    assert client.get("/api/boards/1").json() == original

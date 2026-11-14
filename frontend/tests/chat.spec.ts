@@ -12,7 +12,13 @@ const boardWithNewCard: BoardData = {
   ),
   cards: {
     ...initialData.cards,
-    "card-ai-1": { id: "card-ai-1", title: "From the AI", details: "" },
+    "card-ai-1": {
+      id: "card-ai-1",
+      title: "From the AI",
+      details: "",
+      priority: "none",
+      dueDate: "",
+    },
   },
 };
 

@@ -29,6 +29,8 @@ export const BoardSwitcher = ({
   const [mode, setMode] = useState<"create" | "rename" | null>(null);
   const [name, setName] = useState("");
   const active = boards.find((board) => board.id === activeId);
+  const isOwner = active?.role === "owner";
+  const ownedCount = boards.filter((board) => board.role === "owner").length;
 
   const open = (next: "create" | "rename") => {
     setName(next === "rename" ? (active?.name ?? "") : "");
@@ -65,11 +67,11 @@ export const BoardSwitcher = ({
           className={clsx(
             "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide transition",
             board.id === activeId
-              ? "bg-[var(--primary-blue)] text-white"
+              ? "bg-[var(--primary-blue-text)] text-white"
               : "border border-[var(--stroke)] text-[var(--navy-dark)] hover:border-[var(--primary-blue)]"
           )}
         >
-          {board.name}
+          {board.role === "owner" ? board.name : `${board.name} (${board.owner})`}
         </button>
       ))}
       {mode ? (
@@ -97,10 +99,12 @@ export const BoardSwitcher = ({
           <button type="button" onClick={() => open("create")} className={buttonClass}>
             New board
           </button>
-          <button type="button" onClick={() => open("rename")} className={buttonClass}>
-            Rename board
-          </button>
-          {boards.length > 1 && (
+          {isOwner && (
+            <button type="button" onClick={() => open("rename")} className={buttonClass}>
+              Rename board
+            </button>
+          )}
+          {isOwner && ownedCount > 1 && (
             <button type="button" onClick={handleDelete} className={buttonClass}>
               Delete board
             </button>

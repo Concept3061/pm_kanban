@@ -24,7 +24,7 @@ describe("AuthGate", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(getBoard).mockResolvedValue(initialData);
-    vi.mocked(listBoards).mockResolvedValue([{ id: 1, name: "My Board" }]);
+    vi.mocked(listBoards).mockResolvedValue([{ id: 1, name: "My Board", owner: "user", role: "owner" }]);
     vi.mocked(logout).mockResolvedValue(undefined);
   });
 

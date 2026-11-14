@@ -123,6 +123,8 @@ describe("KanbanBoard", () => {
     const details = screen.getByLabelText("Edit details");
     await userEvent.clear(details);
     await userEvent.type(details, "Edited details");
+    await userEvent.selectOptions(screen.getByLabelText("Priority"), "high");
+    await userEvent.type(screen.getByLabelText("Due date"), "2999-12-31");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(screen.getByText("Edited title")).toBeInTheDocument();
@@ -132,7 +134,11 @@ describe("KanbanBoard", () => {
       id: "card-1",
       title: "Edited title",
       details: "Edited details",
+      priority: "high",
+      dueDate: "2999-12-31",
     });
+    expect(screen.getByTestId("priority-card-1")).toHaveTextContent("high");
+    expect(screen.getByTestId("due-card-1")).toHaveTextContent("Due 2999-12-31");
   });
 
   it("does not save when an edit is cancelled or the title is blank", async () => {
@@ -275,5 +281,178 @@ describe("KanbanBoard", () => {
     await userEvent.click(screen.getByRole("button", { name: "AI Assistant" }));
     await userEvent.type(screen.getByLabelText("Message the assistant"), "Hi{Enter}");
     await waitFor(() => expect(onSignedOut).toHaveBeenCalled());
+  });
+
+  it("adds a column and saves it", async () => {
+    await renderBoard();
+    await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+    await waitFor(() => expect(saveBoard).toHaveBeenCalledTimes(1));
+    const saved = lastSaved();
+    expect(saved.columns).toHaveLength(6);
+    expect(saved.columns[5]).toMatchObject({ title: "New column", cardIds: [] });
+    expect(screen.getAllByTestId(/column-/i)).toHaveLength(6);
+  });
+
+  it("deletes an empty column without asking", async () => {
+    const confirm = vi.spyOn(window, "confirm");
+    await renderBoard();
+    await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete column New column" })
+    );
+    expect(confirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(saveBoard).toHaveBeenCalledTimes(2));
+    expect(lastSaved().columns).toHaveLength(5);
+  });
+
+  it("deletes a column and its cards after confirming", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await renderBoard();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete column Backlog" })
+    );
+    await waitFor(() => expect(saveBoard).toHaveBeenCalledTimes(1));
+    const saved = lastSaved();
+    expect(saved.columns.map((column) => column.id)).not.toContain("col-backlog");
+    expect(Object.keys(saved.cards)).not.toContain("card-1");
+    expect(Object.keys(saved.cards)).not.toContain("card-2");
+    expect(Object.keys(saved.cards)).toContain("card-3");
+    expect(screen.queryByText("Align roadmap themes")).not.toBeInTheDocument();
+  });
+
+  it("keeps a column with cards when deletion is not confirmed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    await renderBoard();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete column Backlog" })
+    );
+    expect(saveBoard).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+  });
+
+  it("does not offer to delete the last column", async () => {
+    vi.mocked(getBoard).mockResolvedValue({
+      columns: [{ id: "only", title: "Only", cardIds: [] }],
+      cards: {},
+    });
+    await renderBoard();
+    expect(screen.queryByRole("button", { name: /delete column/i })).not.toBeInTheDocument();
+  });
+
+  it("adds a card with a priority and due date", async () => {
+    await renderBoard();
+    const column = getFirstColumn();
+    await userEvent.click(within(column).getByRole("button", { name: "Add a card" }));
+    await userEvent.type(within(column).getByPlaceholderText(/card title/i), "Urgent");
+    await userEvent.selectOptions(within(column).getByLabelText("Priority"), "medium");
+    await userEvent.type(within(column).getByLabelText("Due date"), "2999-01-02");
+    await userEvent.click(within(column).getByRole("button", { name: "Add card" }));
+
+    await waitFor(() => expect(saveBoard).toHaveBeenCalledTimes(1));
+    const added = Object.values(lastSaved().cards).find((card) => card.title === "Urgent");
+    expect(added).toMatchObject({ priority: "medium", dueDate: "2999-01-02" });
+  });
+
+  it("shows nothing extra for cards without a priority or due date", async () => {
+    await renderBoard();
+    expect(screen.queryByTestId("priority-card-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("due-card-1")).not.toBeInTheDocument();
+  });
+
+  it("marks a past due date as overdue", async () => {
+    vi.mocked(getBoard).mockResolvedValue({
+      ...initialData,
+      cards: {
+        ...initialData.cards,
+        "card-1": { ...initialData.cards["card-1"], priority: "low", dueDate: "2000-01-01" },
+      },
+    });
+    await renderBoard();
+    expect(screen.getByTestId("due-card-1")).toHaveTextContent("Overdue: 2000-01-01");
+    expect(screen.getByTestId("priority-card-1")).toHaveTextContent("low");
+  });
+
+  describe("when read-only", () => {
+    const renderReadOnly = async () => {
+      render(<KanbanBoard boardId={1} readOnly username="user" onSignedOut={onSignedOut} />);
+      await screen.findByRole("heading", { name: "Kanban Studio" });
+    };
+
+    it("shows the board without any way to change it", async () => {
+      await renderReadOnly();
+      expect(screen.getByText("Align roadmap themes")).toBeInTheDocument();
+      expect(screen.getByText("View only")).toBeInTheDocument();
+      for (const name of [/add a card/i, /add column/i, /^edit /i, /^delete /i, /ai assistant/i]) {
+        expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+      }
+      expect(screen.queryByLabelText("Message the assistant")).not.toBeInTheDocument();
+      expect(within(getFirstColumn()).getByLabelText("Column title")).toHaveAttribute("readonly");
+    });
+
+    it("does not save when a column title is typed into", async () => {
+      await renderReadOnly();
+      const input = within(getFirstColumn()).getByLabelText("Column title");
+      await userEvent.type(input, "x{Enter}");
+      await userEvent.tab();
+      expect(saveBoard).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("filtering", () => {
+    const visibleTitles = () =>
+      screen.getAllByTestId(/^card-/).map((card) => within(card).getByRole("heading").textContent);
+
+    it("searches titles and details", async () => {
+      await renderBoard();
+      await userEvent.type(screen.getByLabelText("Search cards"), "roadmap");
+      expect(visibleTitles()).toEqual(["Align roadmap themes"]);
+      await userEvent.clear(screen.getByLabelText("Search cards"));
+      await userEvent.type(screen.getByLabelText("Search cards"), "hover");
+      expect(visibleTitles()).toEqual(["QA micro-interactions"]);
+    });
+
+    it("shows how many cards match in each column", async () => {
+      await renderBoard();
+      await userEvent.type(screen.getByLabelText("Search cards"), "roadmap");
+      expect(within(getFirstColumn()).getByText(/1 of 2\s+cards/)).toBeInTheDocument();
+      expect(screen.getAllByText("No matching cards")).toHaveLength(4);
+      expect(screen.queryByText("Drop a card here")).not.toBeInTheDocument();
+    });
+
+    it("filters by priority and overdue, and clears", async () => {
+      vi.mocked(getBoard).mockResolvedValue({
+        ...initialData,
+        cards: {
+          ...initialData.cards,
+          "card-1": { ...initialData.cards["card-1"], priority: "high", dueDate: "2000-01-01" },
+          "card-2": { ...initialData.cards["card-2"], priority: "high", dueDate: "2999-01-01" },
+        },
+      });
+      await renderBoard();
+      await userEvent.selectOptions(screen.getByLabelText("Filter by priority"), "high");
+      expect(visibleTitles()).toEqual(["Align roadmap themes", "Gather customer signals"]);
+      await userEvent.click(screen.getByLabelText("Overdue only"));
+      expect(visibleTitles()).toEqual(["Align roadmap themes"]);
+      await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(visibleTitles()).toHaveLength(8);
+      expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+    });
+
+    it("does not change or save the board", async () => {
+      await renderBoard();
+      await userEvent.type(screen.getByLabelText("Search cards"), "roadmap");
+      expect(saveBoard).not.toHaveBeenCalled();
+    });
+
+    it("saves every card when a card is added while filtered", async () => {
+      await renderBoard();
+      await userEvent.type(screen.getByLabelText("Search cards"), "roadmap");
+      const column = getFirstColumn();
+      await userEvent.click(within(column).getByRole("button", { name: "Add a card" }));
+      await userEvent.type(within(column).getByPlaceholderText(/card title/i), "Extra");
+      await userEvent.click(within(column).getByRole("button", { name: "Add card" }));
+      await waitFor(() => expect(saveBoard).toHaveBeenCalledTimes(1));
+      expect(Object.keys(lastSaved().cards)).toHaveLength(9);
+    });
   });
 });

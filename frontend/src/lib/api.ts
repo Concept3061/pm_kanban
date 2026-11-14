@@ -60,7 +60,16 @@ export const changePassword = (currentPassword: string, newPassword: string) =>
 export const deleteAccount = (password: string) =>
   request<void>("/api/auth/me", "DELETE", { password });
 
-export type BoardSummary = { id: number; name: string };
+export type Role = "owner" | "editor" | "viewer";
+
+export type BoardSummary = {
+  id: number;
+  name: string;
+  owner: string;
+  role: Role;
+};
+
+export type Member = { username: string; role: Role };
 
 export const listBoards = () => request<BoardSummary[]>("/api/boards");
 
@@ -68,7 +77,7 @@ export const createBoard = (name: string) =>
   request<BoardSummary>("/api/boards", "POST", { name });
 
 export const renameBoard = (id: number, name: string) =>
-  request<BoardSummary>(`/api/boards/${id}`, "PATCH", { name });
+  request<{ id: number; name: string }>(`/api/boards/${id}`, "PATCH", { name });
 
 export const deleteBoard = (id: number) =>
   request<void>(`/api/boards/${id}`, "DELETE");
@@ -85,3 +94,46 @@ export const sendChat = (
   history: ChatMessage[]
 ) =>
   request<ChatResponse>(`/api/boards/${id}/chat`, "POST", { message, history });
+
+export const listMembers = (boardId: number) =>
+  request<Member[]>(`/api/boards/${boardId}/members`);
+
+export const shareBoard = (
+  boardId: number,
+  username: string,
+  role: "editor" | "viewer"
+) =>
+  request<Member>(
+    `/api/boards/${boardId}/members/${encodeURIComponent(username)}`,
+    "PUT",
+    { role }
+  );
+
+export const unshareBoard = (boardId: number, username: string) =>
+  request<void>(
+    `/api/boards/${boardId}/members/${encodeURIComponent(username)}`,
+    "DELETE"
+  );
+
+export type ActivityEntry = {
+  // null when the user has since deleted their account.
+  username: string | null;
+  viaAi: boolean;
+  message: string;
+  createdAt: string;
+};
+
+export const listActivity = (boardId: number) =>
+  request<ActivityEntry[]>(`/api/boards/${boardId}/activity`);
+
+export type OverviewData = {
+  totals: { boards: number; cards: number; overdue: number; highPriority: number };
+  boards: (BoardSummary & {
+    cards: number;
+    overdue: number;
+    highPriority: number;
+    columns: { title: string; count: number }[];
+  })[];
+};
+
+export const getOverview = () => request<OverviewData>("/api/overview");

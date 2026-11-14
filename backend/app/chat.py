@@ -5,8 +5,8 @@ from openai import OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from app import ai
-from app.auth import Db
-from app.board import BoardData, BoardId, Card, Column, InvalidBoard, read_board, write_board
+from app.auth import CurrentUser, Db
+from app.board import BoardData, Card, Column, EditableBoardId, InvalidBoard, Priority, read_board, write_board
 
 router = APIRouter(prefix="/api/boards/{board_id}/chat")
 
@@ -24,13 +24,16 @@ board_update to null. When you update the board:
 - Keep every column, with the same id and in the same order. Add, remove, rename or reorder columns only if asked.
 - Keep every card and its id unchanged unless the user asked you to change or delete it.
 - Give each new card a new id that is not already on the board, such as card-ai-1.
-- Every card needs a non-empty title. Use an empty string if a card has no details."""
+- Every card needs a non-empty title. Use an empty string if a card has no details.
+- priority is one of none, low, medium or high. dueDate is a YYYY-MM-DD date, or an empty string for no due date."""
 
 
 class AICard(BaseModel):
     id: str
     title: str
     details: str
+    priority: Priority
+    dueDate: str
 
 
 class AIColumn(BaseModel):
@@ -85,7 +88,7 @@ def from_ai_board(board: AIBoard) -> BoardData:
             for column in board.columns
         ],
         cards={
-            card.id: Card(id=card.id, title=card.title, details=card.details)
+            card.id: Card(**card.model_dump())
             for column in board.columns
             for card in column.cards
         },
@@ -93,7 +96,7 @@ def from_ai_board(board: AIBoard) -> BoardData:
 
 
 @router.post("")
-def chat(request: ChatRequest, board_id: BoardId, db: Db) -> ChatResponse:
+def chat(request: ChatRequest, board_id: EditableBoardId, user: CurrentUser, db: Db) -> ChatResponse:
     system = SYSTEM_PROMPT.format(board=to_ai_board(read_board(db, board_id)).model_dump_json())
     messages = [
         {"role": "system", "content": system},
@@ -111,7 +114,7 @@ def chat(request: ChatRequest, board_id: BoardId, db: Db) -> ChatResponse:
     if response.board_update is None:
         return ChatResponse(reply=response.reply, board=None)
     try:
-        write_board(db, board_id, from_ai_board(response.board_update))
+        write_board(db, board_id, from_ai_board(response.board_update), user["id"], via_ai=True)
     except (ValidationError, InvalidBoard) as error:
         raise HTTPException(status_code=502, detail="The AI returned an invalid board") from error
     return ChatResponse(reply=response.reply, board=read_board(db, board_id))

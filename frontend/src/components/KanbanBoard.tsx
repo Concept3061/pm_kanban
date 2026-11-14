@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -11,6 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import clsx from "clsx";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { KanbanColumn } from "@/components/KanbanColumn";
@@ -23,10 +25,21 @@ import {
   sendChat,
   type ChatMessage,
 } from "@/lib/api";
-import { createId, moveCard, type BoardData } from "@/lib/kanban";
+import {
+  createId,
+  isFiltering,
+  matchesFilter,
+  moveCard,
+  noFilter,
+  priorities,
+  type BoardData,
+  type CardFilter,
+  type CardInput,
+} from "@/lib/kanban";
 
 type KanbanBoardProps = {
   boardId: number;
+  readOnly?: boolean;
   switcher?: ReactNode;
   username: string;
   onSignedOut: () => void;
@@ -37,6 +50,7 @@ const isUnauthorized = (error: unknown) =>
 
 export const KanbanBoard = ({
   boardId,
+  readOnly = false,
   switcher,
   username,
   onSignedOut,
@@ -45,12 +59,16 @@ export const KanbanBoard = ({
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [filter, setFilter] = useState<CardFilter>(noFilter);
   // Saves run one at a time so an older board can never overwrite a newer one.
   const pendingSaves = useRef<Promise<void>>(Promise.resolve());
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
@@ -145,13 +163,44 @@ export const KanbanBoard = ({
     });
   };
 
-  const handleAddCard = (columnId: string, title: string, details: string) => {
+  const handleAddColumn = () => {
+    updateBoard({
+      ...board,
+      columns: [
+        ...board.columns,
+        { id: createId("col"), title: "New column", cardIds: [] },
+      ],
+    });
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    const column = board.columns.find((item) => item.id === columnId);
+    if (!column) {
+      return;
+    }
+    if (
+      column.cardIds.length > 0 &&
+      !window.confirm(
+        `Delete "${column.title}" and its ${column.cardIds.length} card(s)?`
+      )
+    ) {
+      return;
+    }
+    updateBoard({
+      columns: board.columns.filter((item) => item.id !== columnId),
+      cards: Object.fromEntries(
+        Object.entries(board.cards).filter(([id]) => !column.cardIds.includes(id))
+      ),
+    });
+  };
+
+  const handleAddCard = (columnId: string, input: CardInput) => {
     const id = createId("card");
     updateBoard({
       ...board,
       cards: {
         ...board.cards,
-        [id]: { id, title, details: details || "No details yet." },
+        [id]: { id, ...input, details: input.details || "No details yet." },
       },
       columns: board.columns.map((column) =>
         column.id === columnId
@@ -161,12 +210,16 @@ export const KanbanBoard = ({
     });
   };
 
-  const handleEditCard = (cardId: string, title: string, details: string) => {
+  const handleEditCard = (cardId: string, input: CardInput) => {
     updateBoard({
       ...board,
       cards: {
         ...board.cards,
-        [cardId]: { id: cardId, title, details: details || "No details yet." },
+        [cardId]: {
+          id: cardId,
+          ...input,
+          details: input.details || "No details yet.",
+        },
       },
     });
   };
@@ -227,6 +280,11 @@ export const KanbanBoard = ({
                 >
                   Log out
                 </button>
+                {readOnly ? (
+                  <span className="rounded-full bg-[var(--accent-yellow)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--navy-dark)]">
+                    View only
+                  </span>
+                ) : (
                 <button
                   type="button"
                   onClick={() => setIsChatOpen((open) => !open)}
@@ -235,12 +293,13 @@ export const KanbanBoard = ({
                 >
                   AI Assistant
                 </button>
+                )}
               </div>
               <div className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--gray-text)]">
                   Focus
                 </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--primary-blue)]">
+                <p className="mt-2 text-lg font-semibold text-[var(--primary-blue-text)]">
                   Many boards. Zero clutter.
                 </p>
               </div>
@@ -258,6 +317,57 @@ export const KanbanBoard = ({
               </div>
             ))}
           </div>
+          <div role="search" className="flex flex-wrap items-center gap-3">
+            <input
+              type="search"
+              aria-label="Search cards"
+              placeholder="Search cards"
+              value={filter.text}
+              onChange={(event) =>
+                setFilter({ ...filter, text: event.target.value })
+              }
+              className="rounded-full border border-[var(--stroke)] bg-white px-4 py-2 text-xs font-semibold text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
+            />
+            <select
+              aria-label="Filter by priority"
+              value={filter.priority}
+              onChange={(event) =>
+                setFilter({
+                  ...filter,
+                  priority: event.target.value as CardFilter["priority"],
+                })
+              }
+              className="rounded-full border border-[var(--stroke)] bg-white px-4 py-2 text-xs font-semibold capitalize text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
+            >
+              <option value="any">Any priority</option>
+              {priorities
+                .filter((priority) => priority !== "none")
+                .map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+            </select>
+            <label className="flex items-center gap-2 text-xs font-semibold text-[var(--gray-text)]">
+              <input
+                type="checkbox"
+                checked={filter.overdueOnly}
+                onChange={(event) =>
+                  setFilter({ ...filter, overdueOnly: event.target.checked })
+                }
+              />
+              Overdue only
+            </label>
+            {isFiltering(filter) && (
+              <button
+                type="button"
+                onClick={() => setFilter(noFilter)}
+                className="text-xs font-semibold text-[var(--primary-blue-text)]"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
           {error && (
             <p role="alert" className="text-sm font-medium text-[var(--secondary-purple)]">
               {error}
@@ -274,22 +384,38 @@ export const KanbanBoard = ({
           <section
             className={clsx(
               "-mx-3 grid overflow-x-auto px-3 pb-10",
+              "grid-flow-col",
               isChatOpen
-                ? "gap-3 lg:grid-cols-[repeat(5,minmax(180px,1fr))]"
-                : "gap-6 lg:grid-cols-5"
+                ? "auto-cols-[minmax(180px,1fr)] gap-3"
+                : "auto-cols-[minmax(220px,1fr)] gap-6"
             )}
           >
             {board.columns.map((column) => (
               <KanbanColumn
                 key={column.id}
                 column={column}
-                cards={column.cardIds.map((cardId) => board.cards[cardId])}
+                cards={column.cardIds
+                  .map((cardId) => board.cards[cardId])
+                  .filter((card) => matchesFilter(card, filter))}
+                isFiltering={isFiltering(filter)}
+                canDelete={board.columns.length > 1}
+                readOnly={readOnly}
                 onRename={handleRenameColumn}
+                onDelete={handleDeleteColumn}
                 onAddCard={handleAddCard}
                 onEditCard={handleEditCard}
                 onDeleteCard={handleDeleteCard}
               />
             ))}
+            {!readOnly && (
+            <button
+              type="button"
+              onClick={handleAddColumn}
+              className="min-h-[120px] self-start rounded-3xl border border-dashed border-[var(--stroke)] px-4 py-6 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)] transition hover:border-[var(--primary-blue)] hover:text-[var(--primary-blue-text)]"
+            >
+              Add column
+            </button>
+            )}
           </section>
           <DragOverlay>
             {activeCard ? (
@@ -301,11 +427,13 @@ export const KanbanBoard = ({
         </DndContext>
       </main>
 
+      {!readOnly && (
       <ChatSidebar
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         onSend={handleChat}
       />
+      )}
     </div>
   );
 };

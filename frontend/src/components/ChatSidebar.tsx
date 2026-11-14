@@ -100,7 +100,7 @@ export const ChatSidebar = ({ isOpen, onClose, onSend }: ChatSidebarProps) => {
             className={clsx(
               "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6",
               message.role === "user"
-                ? "self-end rounded-br-md bg-[var(--primary-blue)] text-white"
+                ? "self-end rounded-br-md bg-[var(--primary-blue-text)] text-white"
                 : "self-start rounded-bl-md border border-[var(--stroke)] bg-white text-[var(--navy-dark)]"
             )}
           >

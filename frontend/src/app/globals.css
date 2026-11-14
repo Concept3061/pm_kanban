@@ -3,9 +3,12 @@
 :root {
   --accent-yellow: #ecad0a;
   --primary-blue: #209dd7;
+  /* Darker blue for text and for backgrounds under white text; #209dd7 fails WCAG AA contrast on white. */
+  --primary-blue-text: #0c6f9c;
   --secondary-purple: #753991;
   --navy-dark: #032147;
-  --gray-text: #888888;
+  /* Darker than the brand gray #888888, which fails WCAG AA contrast for small text. */
+  --gray-text: #666666;
   --surface: #f7f8fb;
   --surface-strong: #ffffff;
   --stroke: rgba(3, 33, 71, 0.08);

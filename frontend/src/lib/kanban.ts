@@ -1,8 +1,17 @@
+export const priorities = ["none", "low", "medium", "high"] as const;
+
+export type Priority = (typeof priorities)[number];
+
 export type Card = {
   id: string;
   title: string;
   details: string;
+  priority: Priority;
+  // YYYY-MM-DD, or empty for no due date.
+  dueDate: string;
 };
+
+export type CardInput = Omit<Card, "id">;
 
 export type Column = {
   id: string;
@@ -32,41 +41,57 @@ export const initialData: BoardData = {
       id: "card-1",
       title: "Align roadmap themes",
       details: "Draft quarterly themes with impact statements and metrics.",
+      priority: "none",
+      dueDate: "",
     },
     "card-2": {
       id: "card-2",
       title: "Gather customer signals",
       details: "Review support tags, sales notes, and churn feedback.",
+      priority: "none",
+      dueDate: "",
     },
     "card-3": {
       id: "card-3",
       title: "Prototype analytics view",
       details: "Sketch initial dashboard layout and key drill-downs.",
+      priority: "none",
+      dueDate: "",
     },
     "card-4": {
       id: "card-4",
       title: "Refine status language",
       details: "Standardize column labels and tone across the board.",
+      priority: "none",
+      dueDate: "",
     },
     "card-5": {
       id: "card-5",
       title: "Design card layout",
       details: "Add hierarchy and spacing for scanning dense lists.",
+      priority: "none",
+      dueDate: "",
     },
     "card-6": {
       id: "card-6",
       title: "QA micro-interactions",
       details: "Verify hover, focus, and loading states.",
+      priority: "none",
+      dueDate: "",
     },
     "card-7": {
       id: "card-7",
       title: "Ship marketing page",
       details: "Final copy approved and asset pack delivered.",
+      priority: "none",
+      dueDate: "",
     },
     "card-8": {
       id: "card-8",
       title: "Close onboarding sprint",
       details: "Document release notes and share internally.",
+      priority: "none",
+      dueDate: "",
     },
   },
 };
@@ -165,4 +190,40 @@ export const createId = (prefix: string) => {
   const randomPart = Math.random().toString(36).slice(2, 8);
   const timePart = Date.now().toString(36);
   return `${prefix}-${randomPart}${timePart}`;
+};
+
+// Compares calendar days as strings, which sort correctly in YYYY-MM-DD form.
+export const isOverdue = (dueDate: string, today: Date = new Date()) => {
+  if (!dueDate) {
+    return false;
+  }
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const todayText = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  return dueDate < todayText;
+};
+
+export type CardFilter = {
+  text: string;
+  priority: Priority | "any";
+  overdueOnly: boolean;
+};
+
+export const noFilter: CardFilter = { text: "", priority: "any", overdueOnly: false };
+
+export const isFiltering = (filter: CardFilter) =>
+  filter.text.trim() !== "" || filter.priority !== "any" || filter.overdueOnly;
+
+export const matchesFilter = (card: Card, filter: CardFilter, today?: Date) => {
+  const text = filter.text.trim().toLowerCase();
+  if (
+    text &&
+    !card.title.toLowerCase().includes(text) &&
+    !card.details.toLowerCase().includes(text)
+  ) {
+    return false;
+  }
+  if (filter.priority !== "any" && card.priority !== filter.priority) {
+    return false;
+  }
+  return !filter.overdueOnly || isOverdue(card.dueDate, today);
 };

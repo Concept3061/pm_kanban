@@ -90,7 +90,7 @@ def test_update_creates_edits_and_moves_cards(client, model):
     moved = update["columns"][0]["cards"].pop(0)
     moved["title"] = "Edited by AI"
     update["columns"][4]["cards"].append(moved)
-    update["columns"][1]["cards"].append({"id": "card-ai-1", "title": "Created", "details": ""})
+    update["columns"][1]["cards"].append({"id": "card-ai-1", "title": "Created", "details": "", "priority": "none", "dueDate": ""})
     model.response = with_update(update)
 
     response = client.post("/api/boards/1/chat", json={"message": "Change things"})
@@ -163,3 +163,38 @@ def test_ai_can_add_and_rename_columns(client, model):
     board = client.post("/api/boards/1/chat", json={"message": "Add a Blocked column"}).json()["board"]
     assert [column["title"] for column in board["columns"]][::5] == ["Ideas", "Blocked"]
     assert client.get("/api/boards/1").json() == board
+
+
+def test_model_sees_priority_and_due_date(client, model):
+    board = client.get("/api/boards/1").json()
+    board["cards"]["card-1"]["dueDate"] = "2030-05-01"
+    client.put("/api/boards/1", json=board)
+    client.post("/api/boards/1/chat", json={"message": "Hi"})
+    system = model.calls[0][0][0]["content"]
+    assert '"priority":"high"' in system
+    assert '"dueDate":"2030-05-01"' in system
+
+
+def test_ai_can_set_priority_and_due_date(client, model):
+    update = nested_board(client)
+    update["columns"][0]["cards"][1].update(priority="high", dueDate="2031-01-15")
+    update["columns"][0]["cards"].append(
+        {"id": "card-ai-1", "title": "Urgent", "details": "", "priority": "high", "dueDate": "2031-01-02"}
+    )
+    model.response = with_update(update)
+
+    board = client.post("/api/boards/1/chat", json={"message": "Prioritise"}).json()["board"]
+    assert board["cards"]["card-2"]["priority"] == "high"
+    assert board["cards"]["card-2"]["dueDate"] == "2031-01-15"
+    assert board["cards"]["card-ai-1"]["dueDate"] == "2031-01-02"
+    assert client.get("/api/boards/1").json() == board
+
+
+@pytest.mark.parametrize("field,value", [("dueDate", "next week"), ("dueDate", "2031-13-01")])
+def test_ai_invalid_card_field_returns_502_and_saves_nothing(client, model, field, value):
+    before = client.get("/api/boards/1").json()
+    update = nested_board(client)
+    update["columns"][0]["cards"][0][field] = value
+    model.response = with_update(update)
+    assert client.post("/api/boards/1/chat", json={"message": "Break it"}).status_code == 502
+    assert client.get("/api/boards/1").json() == before

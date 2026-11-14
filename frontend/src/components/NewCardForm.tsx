@@ -1,9 +1,16 @@
 import { useState, type FormEvent } from "react";
+import { CardFieldInputs } from "@/components/CardFieldInputs";
+import type { CardInput } from "@/lib/kanban";
 
-const initialFormState = { title: "", details: "" };
+const initialFormState: CardInput = {
+  title: "",
+  details: "",
+  priority: "none",
+  dueDate: "",
+};
 
 type NewCardFormProps = {
-  onAdd: (title: string, details: string) => void;
+  onAdd: (input: CardInput) => void;
 };
 
 export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
@@ -15,7 +22,11 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
     if (!formState.title.trim()) {
       return;
     }
-    onAdd(formState.title.trim(), formState.details.trim());
+    onAdd({
+      ...formState,
+      title: formState.title.trim(),
+      details: formState.details.trim(),
+    });
     setFormState(initialFormState);
     setIsOpen(false);
   };
@@ -42,6 +53,13 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
             rows={3}
             className="w-full resize-none rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--gray-text)] outline-none transition focus:border-[var(--primary-blue)]"
           />
+          <CardFieldInputs
+            priority={formState.priority}
+            dueDate={formState.dueDate}
+            onChange={(changes) =>
+              setFormState((prev) => ({ ...prev, ...changes }))
+            }
+          />
           <div className="flex items-center gap-2">
             <button
               type="submit"
@@ -65,7 +83,7 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="w-full rounded-full border border-dashed border-[var(--stroke)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary-blue)] transition hover:border-[var(--primary-blue)]"
+          className="w-full rounded-full border border-dashed border-[var(--stroke)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary-blue-text)] transition hover:border-[var(--primary-blue)]"
         >
           Add a card
         </button>

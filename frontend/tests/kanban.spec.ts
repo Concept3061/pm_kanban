@@ -119,3 +119,19 @@ test("keeps changes and the session across a container restart", async ({ page }
   await expect(page.getByTestId("card-card-2")).toBeVisible();
   await expect(page.getByTestId("card-card-1")).toHaveCount(0);
 });
+
+test("sets a priority and due date and keeps them after reload", async ({ page }) => {
+  const card = page.getByTestId("card-card-1");
+  await card.getByRole("button", { name: "Edit Align roadmap themes" }).click();
+  await card.getByLabel("Priority").selectOption("high");
+  await card.getByLabel("Due date").fill("2000-01-01");
+  const saved = nextSave(page);
+  await card.getByRole("button", { name: "Save" }).click();
+  await saved;
+  await expect(card.getByTestId("priority-card-1")).toHaveText("high");
+  await expect(card.getByTestId("due-card-1")).toHaveText("Overdue: 2000-01-01");
+
+  await page.reload();
+  await expect(page.getByTestId("priority-card-1")).toHaveText("high");
+  await expect(page.getByTestId("due-card-1")).toHaveText("Overdue: 2000-01-01");
+});

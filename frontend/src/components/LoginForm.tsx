@@ -95,7 +95,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
             setIsRegistering(!isRegistering);
             setError(null);
           }}
-          className="mt-4 w-full text-center text-xs font-semibold text-[var(--primary-blue)]"
+          className="mt-4 w-full text-center text-xs font-semibold text-[var(--primary-blue-text)]"
         >
           {isRegistering ? "Have an account? Sign in" : "New here? Create an account"}
         </button>

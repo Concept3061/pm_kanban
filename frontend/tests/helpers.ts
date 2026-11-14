@@ -15,6 +15,8 @@ export const dragCardToColumn = async (
   cardTestId: string,
   columnTestId: string
 ) => {
+  // The header and filter bar push the columns down; bring them into the viewport.
+  await page.getByTestId(columnTestId).evaluate((el) => el.scrollIntoView({ block: "start" }));
   const cardBox = await page.getByTestId(cardTestId).boundingBox();
   const columnBox = await page.getByTestId(columnTestId).boundingBox();
   if (!cardBox || !columnBox) {

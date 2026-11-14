@@ -24,6 +24,26 @@
         "name": "TEXT NOT NULL"
       }
     },
+    "board_members": {
+      "description": "Users a board is shared with, besides its owner. role is editor or viewer.",
+      "columns": {
+        "board_id": "INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE",
+        "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE",
+        "role": "TEXT NOT NULL"
+      },
+      "primary_key": ["board_id", "user_id"]
+    },
+    "activity": {
+      "description": "Changes made to a board, newest last. user_id is cleared if the user is deleted.",
+      "columns": {
+        "id": "INTEGER PRIMARY KEY",
+        "board_id": "INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE",
+        "user_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "via_ai": "INTEGER NOT NULL",
+        "message": "TEXT NOT NULL",
+        "created_at": "TEXT NOT NULL"
+      }
+    },
     "board_columns": {
       "description": "The columns of a board, in order.",
       "columns": {
@@ -42,6 +62,8 @@
         "column_id": "TEXT NOT NULL",
         "title": "TEXT NOT NULL",
         "details": "TEXT NOT NULL",
+        "priority": "TEXT NOT NULL",
+        "due_date": "TEXT NOT NULL",
         "position": "INTEGER NOT NULL"
       },
       "primary_key": ["board_id", "id"],

@@ -82,9 +82,27 @@ def test_migrates_single_board_database(db_path):
 
     with TestClient(app) as client:
         client.cookies.set("session", "old-token")
-        assert client.get("/api/boards").json() == [{"id": 1, "name": "My Board"}]
+        assert client.get("/api/boards").json() == [{"id": 1, "name": "My Board", "owner": "user", "role": "owner"}]
         assert client.get("/api/boards/1").json()["cards"]["c1"]["title"] == "Kept"
         assert client.post("/api/boards", json={"name": "Second"}).status_code == 201
         client.cookies.clear()
         login = client.post("/api/auth/login", json={"username": "user", "password": "password"})
         assert login.status_code == 200
+
+
+def test_migrates_cards_to_priority_and_due_date(db_path):
+    db_path.parent.mkdir(parents=True)
+    conn = sqlite3.connect(db_path)
+    conn.executescript(OLD_SCHEMA)
+    conn.close()
+    with TestClient(app) as client:
+        client.cookies.set("session", "old-token")
+        card = client.get("/api/boards/1").json()["cards"]["c1"]
+        assert (card["priority"], card["dueDate"]) == ("none", "")
+        board = client.get("/api/boards/1").json()
+        board["cards"]["c1"].update(priority="high", dueDate="2030-01-01")
+        assert client.put("/api/boards/1", json=board).status_code == 200
+    with TestClient(app) as restarted:
+        restarted.cookies.set("session", "old-token")
+        assert restarted.get("/api/boards/1").json() == board
+    assert sqlite3.connect(db_path).execute("PRAGMA user_version").fetchone()[0] == 4

@@ -6,7 +6,7 @@ def test_boards_require_session(anonymous):
 
 
 def test_lists_the_seeded_board(client):
-    assert client.get("/api/boards").json() == [{"id": 1, "name": "My Board"}]
+    assert client.get("/api/boards").json() == [{"id": 1, "name": "My Board", "owner": "user", "role": "owner"}]
 
 
 def test_create_board_has_default_empty_columns(client):
@@ -31,7 +31,7 @@ def test_boards_are_independent(client):
 
 def test_rename_board(client):
     assert client.patch("/api/boards/1", json={"name": "Renamed"}).json() == {"id": 1, "name": "Renamed"}
-    assert client.get("/api/boards").json() == [{"id": 1, "name": "Renamed"}]
+    assert client.get("/api/boards").json() == [{"id": 1, "name": "Renamed", "owner": "user", "role": "owner"}]
 
 
 def test_board_name_must_not_be_empty(client):
@@ -62,7 +62,7 @@ def test_unknown_board_is_not_found(client):
 def test_other_users_cannot_see_or_change_my_boards(client, anonymous):
     client.post("/api/auth/logout")
     anonymous.post("/api/auth/register", json={"username": "newbie", "password": "password1"})
-    assert anonymous.get("/api/boards").json() == [{"id": 2, "name": "My Board"}]
+    assert anonymous.get("/api/boards").json() == [{"id": 2, "name": "My Board", "owner": "newbie", "role": "owner"}]
     for response in (
         anonymous.get("/api/boards/1"),
         anonymous.patch("/api/boards/1", json={"name": "Mine now"}),

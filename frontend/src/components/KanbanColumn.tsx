@@ -1,23 +1,31 @@
 import clsx from "clsx";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import type { Card, Column } from "@/lib/kanban";
+import type { Card, CardInput, Column } from "@/lib/kanban";
 import { KanbanCard } from "@/components/KanbanCard";
 import { NewCardForm } from "@/components/NewCardForm";
 
 type KanbanColumnProps = {
   column: Column;
   cards: Card[];
+  canDelete: boolean;
+  readOnly: boolean;
+  isFiltering: boolean;
   onRename: (columnId: string, title: string) => void;
-  onAddCard: (columnId: string, title: string, details: string) => void;
-  onEditCard: (cardId: string, title: string, details: string) => void;
+  onDelete: (columnId: string) => void;
+  onAddCard: (columnId: string, input: CardInput) => void;
+  onEditCard: (cardId: string, input: CardInput) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
 };
 
 export const KanbanColumn = ({
   column,
   cards,
+  canDelete,
+  readOnly,
+  isFiltering,
   onRename,
+  onDelete,
   onAddCard,
   onEditCard,
   onDeleteCard,
@@ -38,13 +46,27 @@ export const KanbanColumn = ({
           <div className="flex items-center gap-3">
             <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-              {cards.length} cards
+              {isFiltering
+                ? `${cards.length} of ${column.cardIds.length}`
+                : cards.length}{" "}
+              cards
             </span>
+            {canDelete && !readOnly && (
+              <button
+                type="button"
+                onClick={() => onDelete(column.id)}
+                aria-label={`Delete column ${column.title}`}
+                className="ml-auto text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
+              >
+                Delete
+              </button>
+            )}
           </div>
           {/* Saved on blur. The key resets the input if the title changes elsewhere, such as from the AI. */}
           <input
             key={column.title}
             defaultValue={column.title}
+            readOnly={readOnly}
             onBlur={(event) => {
               const title = event.target.value.trim();
               if (!title) {
@@ -58,17 +80,18 @@ export const KanbanColumn = ({
                 event.currentTarget.blur();
               }
             }}
-            className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
+            className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-blue-text)]"
             aria-label="Column title"
           />
         </div>
       </div>
       <div className="mt-4 flex flex-1 flex-col gap-3">
-        <SortableContext items={column.cardIds} strategy={verticalListSortingStrategy}>
+        <SortableContext items={cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
             <KanbanCard
               key={card.id}
               card={card}
+              readOnly={readOnly}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
               onEdit={onEditCard}
             />
@@ -76,13 +99,13 @@ export const KanbanColumn = ({
         </SortableContext>
         {cards.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-[var(--stroke)] px-3 py-6 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-            Drop a card here
+            {isFiltering ? "No matching cards" : "Drop a card here"}
           </div>
         )}
       </div>
-      <NewCardForm
-        onAdd={(title, details) => onAddCard(column.id, title, details)}
-      />
+      {!readOnly && (
+        <NewCardForm onAdd={(input) => onAddCard(column.id, input)} />
+      )}
     </section>
   );
 };

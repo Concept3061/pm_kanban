@@ -1,8 +1,9 @@
 import sqlite3
-from typing import Annotated
+from datetime import UTC, date, datetime
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.auth import CurrentUser, Db
 from app.db import create_board
@@ -10,10 +11,23 @@ from app.db import create_board
 router = APIRouter(prefix="/api/boards")
 
 
+Priority = Literal["none", "low", "medium", "high"]
+
+
 class Card(BaseModel):
     id: str
     title: str = Field(min_length=1)
     details: str
+    priority: Priority = "none"
+    # A YYYY-MM-DD date, or empty for no due date.
+    dueDate: str = ""
+
+    @field_validator("dueDate")
+    @classmethod
+    def check_due_date(cls, value: str) -> str:
+        if value:
+            date.fromisoformat(value)
+        return value
 
 
 class Column(BaseModel):
@@ -35,14 +49,35 @@ class BoardName(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
-def owned_board(board_id: int, user: CurrentUser, db: Db) -> int:
-    """The id of the board in the path, if the signed-in user owns it."""
-    if not db.execute("SELECT 1 FROM boards WHERE id = ? AND user_id = ?", (board_id, user["id"])).fetchone():
-        raise HTTPException(status_code=404, detail="Board not found")
-    return board_id
+def board_role(db: sqlite3.Connection, user_id: int, board_id: int) -> str | None:
+    """The user's role on a board: owner, editor or viewer; None if they have no access."""
+    row = db.execute(
+        "SELECT boards.user_id AS owner_id, m.role FROM boards"
+        " LEFT JOIN board_members m ON m.board_id = boards.id AND m.user_id = ? WHERE boards.id = ?",
+        (user_id, board_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return "owner" if row["owner_id"] == user_id else row["role"]
 
 
-BoardId = Annotated[int, Depends(owned_board)]
+def require_role(*allowed: str):
+    """A dependency giving the board id in the path. 404 without access, 403 with too little."""
+
+    def dependency(board_id: int, user: CurrentUser, db: Db) -> int:
+        role = board_role(db, user["id"], board_id)
+        if role is None:
+            raise HTTPException(status_code=404, detail="Board not found")
+        if role not in allowed:
+            raise HTTPException(status_code=403, detail="You do not have permission to do that")
+        return board_id
+
+    return Depends(dependency)
+
+
+BoardId = Annotated[int, require_role("owner", "editor", "viewer")]
+EditableBoardId = Annotated[int, require_role("owner", "editor")]
+OwnedBoardId = Annotated[int, require_role("owner")]
 
 
 def read_board(db: sqlite3.Connection, board_id: int) -> BoardData:
@@ -52,9 +87,15 @@ def read_board(db: sqlite3.Connection, board_id: int) -> BoardData:
     }
     cards = {}
     for row in db.execute(
-        "SELECT id, column_id, title, details FROM cards WHERE board_id = ? ORDER BY position", (board_id,)
+        "SELECT id, column_id, title, details, priority, due_date FROM cards WHERE board_id = ? ORDER BY position", (board_id,)
     ):
-        cards[row["id"]] = Card(id=row["id"], title=row["title"], details=row["details"])
+        cards[row["id"]] = Card(
+            id=row["id"],
+            title=row["title"],
+            details=row["details"],
+            priority=row["priority"],
+            dueDate=row["due_date"],
+        )
         columns[row["column_id"]].cardIds.append(row["id"])
     return BoardData(columns=list(columns.values()), cards=cards)
 
@@ -72,9 +113,52 @@ def validate_board(board: BoardData) -> None:
         raise InvalidBoard("Card keys must match card ids")
 
 
-def write_board(db: sqlite3.Connection, board_id: int, board: BoardData) -> None:
+def describe_changes(old: BoardData, new: BoardData) -> list[str]:
+    """Human-readable events for the difference between two versions of a board."""
+    events = []
+    old_columns = {column.id: column for column in old.columns}
+    new_columns = {column.id: column for column in new.columns}
+    for column in new.columns:
+        if column.id not in old_columns:
+            events.append(f'added column "{column.title}"')
+        elif column.title != old_columns[column.id].title:
+            events.append(f'renamed column "{old_columns[column.id].title}" to "{column.title}"')
+    for column in old.columns:
+        if column.id not in new_columns:
+            events.append(f'deleted column "{column.title}"')
+
+    old_places = {card_id: column for column in old.columns for card_id in column.cardIds}
+    new_places = {card_id: column for column in new.columns for card_id in column.cardIds}
+    for card_id, card in new.cards.items():
+        if card_id not in old.cards:
+            events.append(f'added card "{card.title}" to {new_places[card_id].title}')
+            continue
+        before = old.cards[card_id]
+        if (card.title, card.details, card.priority, card.dueDate) != (
+            before.title,
+            before.details,
+            before.priority,
+            before.dueDate,
+        ):
+            events.append(f'edited card "{before.title}"')
+        if old_places[card_id].id != new_places[card_id].id:
+            events.append(f'moved "{card.title}" from {old_places[card_id].title} to {new_places[card_id].title}')
+    for card_id, card in old.cards.items():
+        if card_id not in new.cards:
+            events.append(f'deleted card "{card.title}"')
+    return events
+
+
+def write_board(
+    db: sqlite3.Connection, board_id: int, board: BoardData, user_id: int, via_ai: bool = False
+) -> None:
     validate_board(board)
+    events = describe_changes(read_board(db, board_id), board)
     with db:
+        db.executemany(
+            "INSERT INTO activity (board_id, user_id, via_ai, message, created_at) VALUES (?, ?, ?, ?, ?)",
+            [(board_id, user_id, via_ai, event, datetime.now(UTC).isoformat(timespec="seconds")) for event in events],
+        )
         db.execute("DELETE FROM cards WHERE board_id = ?", (board_id,))
         db.execute("DELETE FROM board_columns WHERE board_id = ?", (board_id,))
         db.executemany(
@@ -82,9 +166,19 @@ def write_board(db: sqlite3.Connection, board_id: int, board: BoardData) -> None
             [(board_id, column.id, column.title, position) for position, column in enumerate(board.columns)],
         )
         db.executemany(
-            "INSERT INTO cards (board_id, id, column_id, title, details, position) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO cards (board_id, id, column_id, title, details, priority, due_date, position)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                (board_id, card_id, column.id, board.cards[card_id].title, board.cards[card_id].details, position)
+                (
+                    board_id,
+                    card_id,
+                    column.id,
+                    board.cards[card_id].title,
+                    board.cards[card_id].details,
+                    board.cards[card_id].priority,
+                    board.cards[card_id].dueDate,
+                    position,
+                )
                 for column in board.columns
                 for position, card_id in enumerate(column.cardIds)
             ],
@@ -93,24 +187,33 @@ def write_board(db: sqlite3.Connection, board_id: int, board: BoardData) -> None
 
 @router.get("")
 def list_boards(user: CurrentUser, db: Db) -> list[dict]:
-    rows = db.execute("SELECT id, name FROM boards WHERE user_id = ? ORDER BY id", (user["id"],))
+    """Boards the user owns or is a member of, with their role and the owner's name."""
+    rows = db.execute(
+        "SELECT boards.id, boards.name, users.username AS owner,"
+        " CASE WHEN boards.user_id = :user THEN 'owner' ELSE m.role END AS role"
+        " FROM boards JOIN users ON users.id = boards.user_id"
+        " LEFT JOIN board_members m ON m.board_id = boards.id AND m.user_id = :user"
+        " WHERE boards.user_id = :user OR m.user_id = :user ORDER BY boards.id",
+        {"user": user["id"]},
+    )
     return [dict(row) for row in rows]
 
 
 @router.post("", status_code=201)
 def create(body: BoardName, user: CurrentUser, db: Db) -> dict:
-    return {"id": create_board(db, user["id"], body.name), "name": body.name}
+    board_id = create_board(db, user["id"], body.name)
+    return {"id": board_id, "name": body.name, "owner": user["username"], "role": "owner"}
 
 
 @router.patch("/{board_id}")
-def rename(body: BoardName, board_id: BoardId, db: Db) -> dict:
+def rename(body: BoardName, board_id: OwnedBoardId, db: Db) -> dict:
     with db:
         db.execute("UPDATE boards SET name = ? WHERE id = ?", (body.name, board_id))
     return {"id": board_id, "name": body.name}
 
 
 @router.delete("/{board_id}", status_code=204)
-def delete(board_id: BoardId, user: CurrentUser, db: Db):
+def delete(board_id: OwnedBoardId, user: CurrentUser, db: Db):
     if db.execute("SELECT COUNT(*) FROM boards WHERE user_id = ?", (user["id"],)).fetchone()[0] == 1:
         raise HTTPException(status_code=409, detail="You cannot delete your only board")
     with db:
@@ -123,9 +226,9 @@ def get_board(board_id: BoardId, db: Db) -> BoardData:
 
 
 @router.put("/{board_id}")
-def put_board(board: BoardData, board_id: BoardId, db: Db) -> BoardData:
+def put_board(board: BoardData, board_id: EditableBoardId, user: CurrentUser, db: Db) -> BoardData:
     try:
-        write_board(db, board_id, board)
+        write_board(db, board_id, board, user["id"])
     except InvalidBoard as error:
         raise HTTPException(status_code=422, detail=str(error))
     return read_board(db, board_id)

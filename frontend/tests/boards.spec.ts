@@ -80,3 +80,23 @@ test("users cannot see each other's boards", async ({ browser }) => {
   await first.close();
   await second.close();
 });
+
+test("a user adds, renames and deletes columns", async ({ page }) => {
+  await registerAndOpen(page, `cols${Date.now()}`);
+  await page.getByRole("button", { name: "Add column" }).click();
+  await expect(columns(page)).toHaveCount(4);
+
+  const added = columns(page).nth(3);
+  const title = added.getByLabel("Column title");
+  await title.fill("Blocked");
+  await title.press("Enter");
+
+  await page.reload();
+  await expect(columns(page)).toHaveCount(4);
+  await expect(columns(page).nth(3).getByLabel("Column title")).toHaveValue("Blocked");
+
+  await page.getByRole("button", { name: "Delete column Blocked" }).click();
+  await expect(columns(page)).toHaveCount(3);
+  await page.reload();
+  await expect(columns(page)).toHaveCount(3);
+});
