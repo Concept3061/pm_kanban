@@ -1,0 +1,37 @@
+❯ please read PLAN.md in the docs folder to understand everything that has been done so far, and any supporting docs.
+
+  Searched for 1 pattern, read 8 files
+
+I've read docs/PLAN.md and the supporting docs: AGENTS.md (root, backend, frontend and scripts), docs/DATABASE.md, docs/schema.json and README.md. I only read the docs, so I haven't checked the code or run the tests myself.
+
+Status
+
+All 10 parts are marked complete and tested, and you've approved thecommitted, which matches git: the backend, Docker files, scripts andmost of the new frontend code are untracked or uncommitted.
+
+What's built
+
+- App: a Next.js static export served by FastAPI at /, all in one Docker container. It runs on port 8000 (or PORT), with start and stop scripts for Mac, Linux and PC.
+- Sign-in: a hardcoded user / password, enforced by the backend. Sesase, sent in an HTTP-only cookie and don't expire.
+- Database: SQLite through the built-in sqlite3 module, stored on the pm_data volume. It has five tables: users, sessions, boards, board_columns and cards. The schema
+  supports multiple users, with one board per user.
+- Board: the API reads and writes the whole board as one JSON document, and each write replaces all the cards in one transaction. Column set and order are fixed, and
+  only titles can change. Cards can be added, edited, deleted and dre a reload or container restart.
+- AI chat: POST /api/chat calls openai/gpt-oss-120b through OpenRouter and gets back a reply plus either the complete updated board or null.
+  - Invalid responses: these return 502 and leave the board unchange
+  - Excluded providers: CoreWeave truncated boards and DeepInfra ignored the schema in measured responses, so both are excluded.
+  - Chat history: it stays in the browser and is cleared by a reload
+- Tests:
+  - Backend: pytest runs in Docker, with live model tests kept out o
+  - Frontend unit: vitest with a mocked API.
+  - Browser: Playwright runs against a separate container on port 80ocks the chat route.
+
+Known limitations
+
+- Dropped cards: if the AI drops a card from an otherwise valid resped deletion, so the card is deleted. This wasn't seen in testing.
+- Overwritten changes: the last write wins, so an AI update can overwrite changes you make while it's working on a reply.
+- Narrow screens: below about 1,400px wide with the sidebar open, th
+- Script testing: the .sh scripts were only run from sh on Windows, not on an actual Mac or Linux machine.
+
+✻ Worked for 15s · done 7:19 PM
+
+※ recap: You're building a Kanban project management MVP with AI chat, and I've finished reading the plan and supporting docs: all 10 parts are marked complete, but nothing is committed. Next, tell me what you'd like to do. (disable

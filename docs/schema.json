@@ -1,0 +1,49 @@
+{
+  "database": "sqlite",
+  "tables": {
+    "users": {
+      "description": "One row per person who can sign in.",
+      "columns": {
+        "id": "INTEGER PRIMARY KEY",
+        "username": "TEXT NOT NULL UNIQUE"
+      }
+    },
+    "sessions": {
+      "description": "Active sign-ins. The token is the value of the session cookie.",
+      "columns": {
+        "token": "TEXT PRIMARY KEY",
+        "user_id": "INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE"
+      }
+    },
+    "boards": {
+      "description": "One board per user for the MVP, enforced by UNIQUE on user_id.",
+      "columns": {
+        "id": "INTEGER PRIMARY KEY",
+        "user_id": "INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE"
+      }
+    },
+    "board_columns": {
+      "description": "The fixed columns of a board. Titles can change; the set and order cannot.",
+      "columns": {
+        "board_id": "INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE",
+        "id": "TEXT NOT NULL",
+        "title": "TEXT NOT NULL",
+        "position": "INTEGER NOT NULL"
+      },
+      "primary_key": ["board_id", "id"]
+    },
+    "cards": {
+      "description": "Cards on a board. position orders the cards within a column.",
+      "columns": {
+        "board_id": "INTEGER NOT NULL",
+        "id": "TEXT NOT NULL",
+        "column_id": "TEXT NOT NULL",
+        "title": "TEXT NOT NULL",
+        "details": "TEXT NOT NULL",
+        "position": "INTEGER NOT NULL"
+      },
+      "primary_key": ["board_id", "id"],
+      "foreign_keys": ["(board_id, column_id) REFERENCES board_columns(board_id, id) ON DELETE CASCADE"]
+    }
+  }
+}

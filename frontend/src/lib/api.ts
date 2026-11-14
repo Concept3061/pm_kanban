@@ -1,0 +1,54 @@
+import type { BoardData } from "@/lib/kanban";
+
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ChatResponse = {
+  reply: string;
+  board: BoardData | null;
+};
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const request = async <T>(
+  path: string,
+  method: string = "GET",
+  body?: unknown
+): Promise<T> => {
+  const response = await fetch(path, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, `${method} ${path} failed`);
+  }
+  return response.status === 204 ? (undefined as T) : response.json();
+};
+
+export const getMe = () => request<{ username: string }>("/api/auth/me");
+
+export const login = (username: string, password: string) =>
+  request<{ username: string }>("/api/auth/login", "POST", {
+    username,
+    password,
+  });
+
+export const logout = () => request<void>("/api/auth/logout", "POST");
+
+export const getBoard = () => request<BoardData>("/api/board");
+
+export const saveBoard = (board: BoardData) =>
+  request<BoardData>("/api/board", "PUT", board);
+
+export const sendChat = (message: string, history: ChatMessage[]) =>
+  request<ChatResponse>("/api/chat", "POST", { message, history });
