@@ -28,11 +28,7 @@ export const KanbanCard = ({
   const [isEditing, setIsEditing] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const commentCount = useContext(CommentsContext).counts[card.id] ?? 0;
-  const [title, setTitle] = useState(card.title);
-  const [details, setDetails] = useState(card.details);
-  const [priority, setPriority] = useState(card.priority);
-  const [dueDate, setDueDate] = useState(card.dueDate);
-  const [assignee, setAssignee] = useState(card.assignee);
+  const [draft, setDraft] = useState<CardInput>(card);
 
   const {
     attributes,
@@ -50,25 +46,21 @@ export const KanbanCard = ({
   };
 
   const startEditing = () => {
-    setTitle(card.title);
-    setDetails(card.details);
-    setPriority(card.priority);
-    setDueDate(card.dueDate);
-    setAssignee(card.assignee);
+    setDraft(card);
     setIsEditing(true);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!title.trim()) {
+    if (!draft.title.trim()) {
       return;
     }
     onEdit(card.id, {
-      title: title.trim(),
-      details: details.trim(),
-      priority,
-      dueDate,
-      assignee,
+      title: draft.title.trim(),
+      details: draft.details.trim(),
+      priority: draft.priority,
+      dueDate: draft.dueDate,
+      assignee: draft.assignee,
     });
     setIsEditing(false);
   };
@@ -95,35 +87,29 @@ export const KanbanCard = ({
       {isEditing ? (
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            value={draft.title}
+            onChange={(event) =>
+              setDraft((prev) => ({ ...prev, title: event.target.value }))
+            }
             aria-label="Edit title"
             className="w-full rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--navy-dark)] outline-none transition focus:border-[var(--primary-blue)]"
             required
           />
           <textarea
-            value={details}
-            onChange={(event) => setDetails(event.target.value)}
+            value={draft.details}
+            onChange={(event) =>
+              setDraft((prev) => ({ ...prev, details: event.target.value }))
+            }
             aria-label="Edit details"
             rows={3}
             className="w-full resize-none rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--gray-text)] outline-none transition focus:border-[var(--primary-blue)]"
           />
           <CardFieldInputs
-            priority={priority}
-            dueDate={dueDate}
-            assignee={assignee}
+            priority={draft.priority}
+            dueDate={draft.dueDate}
+            assignee={draft.assignee}
             members={members}
-            onChange={(changes) => {
-              if (changes.priority !== undefined) {
-                setPriority(changes.priority);
-              }
-              if (changes.dueDate !== undefined) {
-                setDueDate(changes.dueDate);
-              }
-              if (changes.assignee !== undefined) {
-                setAssignee(changes.assignee);
-              }
-            }}
+            onChange={(changes) => setDraft((prev) => ({ ...prev, ...changes }))}
           />
           <div className="flex items-center gap-2">
             <button
@@ -197,26 +183,26 @@ export const KanbanCard = ({
             >
               Comments ({commentCount})
             </button>
-          {!readOnly && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={startEditing}
-              className={actionClass}
-              aria-label={`Edit ${card.title}`}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(card.id)}
-              className={actionClass}
-              aria-label={`Delete ${card.title}`}
-            >
-              Delete
-            </button>
-          </div>
-          )}
+            {!readOnly && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className={actionClass}
+                  aria-label={`Edit ${card.title}`}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(card.id)}
+                  className={actionClass}
+                  aria-label={`Delete ${card.title}`}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
           {showComments && <CardComments cardId={card.id} />}
         </>

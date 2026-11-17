@@ -154,12 +154,7 @@ def describe_changes(old: BoardData, new: BoardData) -> list[str]:
             events.append(
                 f'assigned "{card.title}" to {card.assignee}' if card.assignee else f'unassigned "{card.title}"'
             )
-        if (card.title, card.details, card.priority, card.dueDate) != (
-            before.title,
-            before.details,
-            before.priority,
-            before.dueDate,
-        ):
+        if card.model_dump(exclude={"assignee"}) != before.model_dump(exclude={"assignee"}):
             events.append(f'edited card "{before.title}"')
         if old_places[card_id].id != new_places[card_id].id:
             events.append(f'moved "{card.title}" from {old_places[card_id].title} to {new_places[card_id].title}')
@@ -189,19 +184,9 @@ def write_board(
             "INSERT INTO cards (board_id, id, column_id, title, details, priority, due_date, assignee, position)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                (
-                    board_id,
-                    card_id,
-                    column.id,
-                    board.cards[card_id].title,
-                    board.cards[card_id].details,
-                    board.cards[card_id].priority,
-                    board.cards[card_id].dueDate,
-                    board.cards[card_id].assignee,
-                    position,
-                )
+                (board_id, card.id, column.id, card.title, card.details, card.priority, card.dueDate, card.assignee, position)
                 for column in board.columns
-                for position, card_id in enumerate(column.cardIds)
+                for position, card in enumerate(board.cards[card_id] for card_id in column.cardIds)
             ],
         )
         db.execute(

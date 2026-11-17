@@ -26,6 +26,15 @@ export type BoardData = {
   cards: Record<string, Card>;
 };
 
+const seedCard = (id: string, title: string, details: string): Card => ({
+  id,
+  title,
+  details,
+  priority: "none",
+  dueDate: "",
+  assignee: "",
+});
+
 export const initialData: BoardData = {
   columns: [
     { id: "col-backlog", title: "Backlog", cardIds: ["card-1", "card-2"] },
@@ -38,83 +47,56 @@ export const initialData: BoardData = {
     { id: "col-review", title: "Review", cardIds: ["card-6"] },
     { id: "col-done", title: "Done", cardIds: ["card-7", "card-8"] },
   ],
-  cards: {
-    "card-1": {
-      id: "card-1",
-      title: "Align roadmap themes",
-      details: "Draft quarterly themes with impact statements and metrics.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-2": {
-      id: "card-2",
-      title: "Gather customer signals",
-      details: "Review support tags, sales notes, and churn feedback.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-3": {
-      id: "card-3",
-      title: "Prototype analytics view",
-      details: "Sketch initial dashboard layout and key drill-downs.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-4": {
-      id: "card-4",
-      title: "Refine status language",
-      details: "Standardize column labels and tone across the board.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-5": {
-      id: "card-5",
-      title: "Design card layout",
-      details: "Add hierarchy and spacing for scanning dense lists.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-6": {
-      id: "card-6",
-      title: "QA micro-interactions",
-      details: "Verify hover, focus, and loading states.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-7": {
-      id: "card-7",
-      title: "Ship marketing page",
-      details: "Final copy approved and asset pack delivered.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-    "card-8": {
-      id: "card-8",
-      title: "Close onboarding sprint",
-      details: "Document release notes and share internally.",
-      priority: "none",
-      dueDate: "",
-      assignee: "",
-    },
-  },
+  cards: Object.fromEntries(
+    [
+      seedCard(
+        "card-1",
+        "Align roadmap themes",
+        "Draft quarterly themes with impact statements and metrics."
+      ),
+      seedCard(
+        "card-2",
+        "Gather customer signals",
+        "Review support tags, sales notes, and churn feedback."
+      ),
+      seedCard(
+        "card-3",
+        "Prototype analytics view",
+        "Sketch initial dashboard layout and key drill-downs."
+      ),
+      seedCard(
+        "card-4",
+        "Refine status language",
+        "Standardize column labels and tone across the board."
+      ),
+      seedCard(
+        "card-5",
+        "Design card layout",
+        "Add hierarchy and spacing for scanning dense lists."
+      ),
+      seedCard(
+        "card-6",
+        "QA micro-interactions",
+        "Verify hover, focus, and loading states."
+      ),
+      seedCard(
+        "card-7",
+        "Ship marketing page",
+        "Final copy approved and asset pack delivered."
+      ),
+      seedCard(
+        "card-8",
+        "Close onboarding sprint",
+        "Document release notes and share internally."
+      ),
+    ].map((card) => [card.id, card])
+  ),
 };
 
-const isColumnId = (columns: Column[], id: string) =>
-  columns.some((column) => column.id === id);
-
-const findColumnId = (columns: Column[], id: string) => {
-  if (isColumnId(columns, id)) {
-    return id;
-  }
-  return columns.find((column) => column.cardIds.includes(id))?.id;
-};
+// A column id finds that column; a card id finds the column holding the card.
+const findColumn = (columns: Column[], id: string) =>
+  columns.find((column) => column.id === id) ??
+  columns.find((column) => column.cardIds.includes(id));
 
 export const moveCard = (
   columns: Column[],
@@ -123,50 +105,32 @@ export const moveCard = (
   // Dropping on a card in another column: put the card after it instead of before.
   placeAfter = false
 ): Column[] => {
-  const activeColumnId = findColumnId(columns, activeId);
-  const overColumnId = findColumnId(columns, overId);
-
-  if (!activeColumnId || !overColumnId) {
-    return columns;
-  }
-
-  const activeColumn = columns.find((column) => column.id === activeColumnId);
-  const overColumn = columns.find((column) => column.id === overColumnId);
-
+  const activeColumn = findColumn(columns, activeId);
+  const overColumn = findColumn(columns, overId);
   if (!activeColumn || !overColumn) {
     return columns;
   }
+  const isOverColumn = overColumn.id === overId;
 
-  const isOverColumn = isColumnId(columns, overId);
-
-  if (activeColumnId === overColumnId) {
+  if (activeColumn.id === overColumn.id) {
+    let cardIds: string[];
     if (isOverColumn) {
-      const nextCardIds = activeColumn.cardIds.filter(
-        (cardId) => cardId !== activeId
-      );
-      nextCardIds.push(activeId);
-      return columns.map((column) =>
-        column.id === activeColumnId
-          ? { ...column, cardIds: nextCardIds }
-          : column
-      );
+      cardIds = [
+        ...activeColumn.cardIds.filter((cardId) => cardId !== activeId),
+        activeId,
+      ];
+    } else {
+      const oldIndex = activeColumn.cardIds.indexOf(activeId);
+      const newIndex = activeColumn.cardIds.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+        return columns;
+      }
+      cardIds = activeColumn.cardIds
+        .toSpliced(oldIndex, 1)
+        .toSpliced(newIndex, 0, activeId);
     }
-
-    const oldIndex = activeColumn.cardIds.indexOf(activeId);
-    const newIndex = activeColumn.cardIds.indexOf(overId);
-
-    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
-      return columns;
-    }
-
-    const nextCardIds = [...activeColumn.cardIds];
-    nextCardIds.splice(oldIndex, 1);
-    nextCardIds.splice(newIndex, 0, activeId);
-
     return columns.map((column) =>
-      column.id === activeColumnId
-        ? { ...column, cardIds: nextCardIds }
-        : column
+      column.id === activeColumn.id ? { ...column, cardIds } : column
     );
   }
 
@@ -174,28 +138,19 @@ export const moveCard = (
   if (activeIndex === -1) {
     return columns;
   }
-
-  const nextActiveCardIds = [...activeColumn.cardIds];
-  nextActiveCardIds.splice(activeIndex, 1);
-
-  const nextOverCardIds = [...overColumn.cardIds];
-  if (isOverColumn) {
-    nextOverCardIds.push(activeId);
-  } else {
-    const overIndex = overColumn.cardIds.indexOf(overId);
-    const insertIndex =
-      overIndex === -1
-        ? nextOverCardIds.length
-        : overIndex + (placeAfter ? 1 : 0);
-    nextOverCardIds.splice(insertIndex, 0, activeId);
-  }
+  const insertIndex = isOverColumn
+    ? overColumn.cardIds.length
+    : overColumn.cardIds.indexOf(overId) + (placeAfter ? 1 : 0);
 
   return columns.map((column) => {
-    if (column.id === activeColumnId) {
-      return { ...column, cardIds: nextActiveCardIds };
+    if (column.id === activeColumn.id) {
+      return { ...column, cardIds: column.cardIds.toSpliced(activeIndex, 1) };
     }
-    if (column.id === overColumnId) {
-      return { ...column, cardIds: nextOverCardIds };
+    if (column.id === overColumn.id) {
+      return {
+        ...column,
+        cardIds: column.cardIds.toSpliced(insertIndex, 0, activeId),
+      };
     }
     return column;
   });

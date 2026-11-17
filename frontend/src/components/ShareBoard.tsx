@@ -5,6 +5,7 @@ import {
   shareBoard,
   unshareBoard,
   type Member,
+  type ShareRole,
 } from "@/lib/api";
 
 type ShareBoardProps = {
@@ -34,7 +35,7 @@ export const ShareBoard = ({ boardId, isOwner, onLeave }: ShareBoardProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState<"editor" | "viewer">("editor");
+  const [role, setRole] = useState<ShareRole>("editor");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,7 +121,7 @@ export const ShareBoard = ({ boardId, isOwner, onLeave }: ShareBoardProps) => {
                           shareBoard(
                             boardId,
                             member.username,
-                            event.target.value as "editor" | "viewer"
+                            event.target.value as ShareRole
                           )
                         )
                       }
@@ -159,7 +160,7 @@ export const ShareBoard = ({ boardId, isOwner, onLeave }: ShareBoardProps) => {
               <select
                 value={role}
                 onChange={(event) =>
-                  setRole(event.target.value as "editor" | "viewer")
+                  setRole(event.target.value as ShareRole)
                 }
                 className={`${fieldClass} mt-1 block`}
               >

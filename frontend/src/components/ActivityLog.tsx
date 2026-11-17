@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { listActivity, type ActivityEntry } from "@/lib/api";
 
 type ActivityLogProps = {
@@ -39,6 +39,43 @@ export const ActivityLog = ({ boardId }: ActivityLogProps) => {
     };
   }, [isOpen, boardId, reloads]);
 
+  let content: ReactNode;
+  if (error) {
+    content = (
+      <p role="alert" className="text-sm font-medium text-[var(--secondary-purple)]">
+        {error}
+      </p>
+    );
+  } else if (entries === null) {
+    content = (
+      <p role="status" className="text-sm text-[var(--gray-text)]">
+        Loading...
+      </p>
+    );
+  } else if (entries.length === 0) {
+    content = <p className="text-sm text-[var(--gray-text)]">No changes yet.</p>;
+  } else {
+    content = (
+      <ul aria-label="Activity" className="flex max-h-72 flex-col gap-2 overflow-y-auto">
+        {entries.map((entry, index) => (
+          <li key={index} className="text-sm text-[var(--navy-dark)]">
+            <span className="font-semibold">
+              {entry.username ?? "A deleted user"}
+              {entry.viaAi && " (via AI)"}
+            </span>{" "}
+            {entry.message}
+            <time
+              dateTime={entry.createdAt}
+              className="ml-2 text-xs text-[var(--gray-text)]"
+            >
+              {new Date(entry.createdAt).toLocaleString()}
+            </time>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <button
@@ -59,35 +96,7 @@ export const ActivityLog = ({ boardId }: ActivityLogProps) => {
               Refresh
             </button>
           </div>
-          {error ? (
-            <p role="alert" className="text-sm font-medium text-[var(--secondary-purple)]">
-              {error}
-            </p>
-          ) : entries === null ? (
-            <p role="status" className="text-sm text-[var(--gray-text)]">
-              Loading...
-            </p>
-          ) : entries.length === 0 ? (
-            <p className="text-sm text-[var(--gray-text)]">No changes yet.</p>
-          ) : (
-            <ul aria-label="Activity" className="flex max-h-72 flex-col gap-2 overflow-y-auto">
-              {entries.map((entry, index) => (
-                <li key={index} className="text-sm text-[var(--navy-dark)]">
-                  <span className="font-semibold">
-                    {entry.username ?? "A deleted user"}
-                    {entry.viaAi && " (via AI)"}
-                  </span>{" "}
-                  {entry.message}
-                  <time
-                    dateTime={entry.createdAt}
-                    className="ml-2 text-xs text-[var(--gray-text)]"
-                  >
-                    {new Date(entry.createdAt).toLocaleString()}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          )}
+          {content}
         </div>
       )}
     </div>

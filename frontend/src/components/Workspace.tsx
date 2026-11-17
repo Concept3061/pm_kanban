@@ -8,9 +8,9 @@ import { KanbanBoard } from "@/components/KanbanBoard";
 import { Overview } from "@/components/Overview";
 import { ShareBoard } from "@/components/ShareBoard";
 import {
-  ApiError,
   createBoard,
   deleteBoard,
+  isUnauthorized,
   listBoards,
   renameBoard,
   unshareBoard,
@@ -30,7 +30,7 @@ export const Workspace = ({ username, onSignedOut }: WorkspaceProps) => {
 
   const handleFailure = useCallback(
     (err: unknown, message: string) => {
-      if (err instanceof ApiError && err.status === 401) {
+      if (isUnauthorized(err)) {
         onSignedOut();
       } else {
         setError(message);
@@ -84,13 +84,18 @@ export const Workspace = ({ username, onSignedOut }: WorkspaceProps) => {
     }
   };
 
+  // Drops a deleted or left board from the list and opens the first one left.
+  const removeBoard = (id: number) => {
+    const remaining = boards.filter((item) => item.id !== id);
+    setBoards(remaining);
+    setActiveId(remaining[0].id);
+    setError(null);
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await deleteBoard(id);
-      const remaining = boards.filter((item) => item.id !== id);
-      setBoards(remaining);
-      setActiveId(remaining[0].id);
-      setError(null);
+      removeBoard(id);
     } catch (err) {
       handleFailure(err, "Could not delete the board.");
     }
@@ -99,10 +104,7 @@ export const Workspace = ({ username, onSignedOut }: WorkspaceProps) => {
   const handleLeave = async () => {
     try {
       await unshareBoard(activeId, username);
-      const remaining = boards.filter((item) => item.id !== activeId);
-      setBoards(remaining);
-      setActiveId(remaining[0].id);
-      setError(null);
+      removeBoard(activeId);
     } catch (err) {
       handleFailure(err, "Could not leave the board.");
     }
@@ -124,47 +126,45 @@ export const Workspace = ({ username, onSignedOut }: WorkspaceProps) => {
   }
 
   return (
-    <>
-      <KanbanBoard
-        key={activeId}
-        boardId={activeId}
-        readOnly={role === "viewer"}
-        isOwner={role === "owner"}
-        username={username}
-        onSignedOut={onSignedOut}
-        switcher={
-          <>
-            <BoardSwitcher
-              boards={boards}
-              activeId={activeId}
-              onSelect={setActiveId}
-              onCreate={handleCreate}
-              onRename={handleRename}
-              onDelete={handleDelete}
-            />
-            <button
-              type="button"
-              onClick={() => setIsOverview(true)}
-              className="self-start rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
-            >
-              Overview
-            </button>
-            <ActivityLog key={`activity-${activeId}`} boardId={activeId} />
-            <ShareBoard
-              key={activeId}
-              boardId={activeId}
-              isOwner={role === "owner"}
-              onLeave={handleLeave}
-            />
-            <AccountSettings onAccountDeleted={onSignedOut} />
-            {error && (
-              <p role="alert" className="text-sm font-medium text-[var(--secondary-purple)]">
-                {error}
-              </p>
-            )}
-          </>
-        }
-      />
-    </>
+    <KanbanBoard
+      key={activeId}
+      boardId={activeId}
+      readOnly={role === "viewer"}
+      isOwner={role === "owner"}
+      username={username}
+      onSignedOut={onSignedOut}
+      switcher={
+        <>
+          <BoardSwitcher
+            boards={boards}
+            activeId={activeId}
+            onSelect={setActiveId}
+            onCreate={handleCreate}
+            onRename={handleRename}
+            onDelete={handleDelete}
+          />
+          <button
+            type="button"
+            onClick={() => setIsOverview(true)}
+            className="self-start rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
+          >
+            Overview
+          </button>
+          <ActivityLog key={`activity-${activeId}`} boardId={activeId} />
+          <ShareBoard
+            key={activeId}
+            boardId={activeId}
+            isOwner={role === "owner"}
+            onLeave={handleLeave}
+          />
+          <AccountSettings onAccountDeleted={onSignedOut} />
+          {error && (
+            <p role="alert" className="text-sm font-medium text-[var(--secondary-purple)]">
+              {error}
+            </p>
+          )}
+        </>
+      }
+    />
   );
 };

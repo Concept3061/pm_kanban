@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiError, getOverview, type OverviewData } from "@/lib/api";
+import { getOverview, isUnauthorized, type OverviewData } from "@/lib/api";
 
 type OverviewProps = {
   onOpenBoard: (id: number) => void;
@@ -18,7 +18,7 @@ export const Overview = ({ onOpenBoard, onClose, onSignedOut }: OverviewProps) =
     getOverview()
       .then(setData)
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
+        if (isUnauthorized(err)) {
           onSignedOut();
         } else {
           setError("Could not load the overview.");

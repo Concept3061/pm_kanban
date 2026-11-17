@@ -19,6 +19,9 @@ export class ApiError extends Error {
   }
 }
 
+export const isUnauthorized = (error: unknown) =>
+  error instanceof ApiError && error.status === 401;
+
 const request = async <T>(
   path: string,
   method: string = "GET",
@@ -62,6 +65,9 @@ export const deleteAccount = (password: string) =>
 
 export type Role = "owner" | "editor" | "viewer";
 
+// The roles a board can be shared with.
+export type ShareRole = Exclude<Role, "owner">;
+
 export type BoardSummary = {
   id: number;
   name: string;
@@ -101,7 +107,7 @@ export const listMembers = (boardId: number) =>
 export const shareBoard = (
   boardId: number,
   username: string,
-  role: "editor" | "viewer"
+  role: ShareRole
 ) =>
   request<Member>(
     `/api/boards/${boardId}/members/${encodeURIComponent(username)}`,
